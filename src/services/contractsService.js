@@ -1,0 +1,36 @@
+import apiServices from '@/api/apiServices'
+
+const contractsService = {
+
+  async getAll(filters = {}) {
+    const params = new URLSearchParams()
+    if (filters.projectId) params.append('projectId', filters.projectId)
+    if (filters.status) params.append('status', filters.status)
+    if (filters.search) params.append('search', filters.search)
+    const query = params.toString()
+    const { data } = await apiServices.get(`/contracts${query ? `?${query}` : ''}`)
+    return data
+  },
+
+  async getById(id) {
+    const { data } = await apiServices.get(`/contracts/${id}`)
+    return data
+  },
+
+  async create(contractData) {
+    const { data } = await apiServices.post('/contracts', contractData)
+    return data
+  },
+
+  async update(id, contractData) {
+    const { data } = await apiServices.patch(`/contracts/${id}`, contractData)
+    return data
+  },
+
+  async delete(id) {
+    const { data } = await apiServices.delete(`/contracts/${id}`)
+    return data
+  }
+}
+
+export default contractsService
