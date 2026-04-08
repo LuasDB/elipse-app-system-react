@@ -30,6 +30,23 @@ const contractsService = {
   async delete(id) {
     const { data } = await apiServices.delete(`/contracts/${id}`)
     return data
+  },
+
+  async uploadFiles(contractId, files) {
+  const formData = new FormData()
+  files.forEach(file => formData.append('files', file))
+
+  const { data } = await apiServices.post(
+    `/contracts/${contractId}/files`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+  return data
+  },
+
+  async removeFile(contractId, fileName) {
+    const { data } = await apiServices.delete(`/contracts/${contractId}/files/${fileName}`)
+    return data
   }
 }
 

@@ -1,7 +1,9 @@
-import { X, Building2, Home, User, DollarSign, Calendar, FileText, Phone, Mail, MapPin } from 'lucide-react'
+import { useState } from 'react'
+import { X, Building2, Home, User, DollarSign, Calendar, FileText, Phone, Mail, MapPin,Upload, Trash2, Paperclip, File } from 'lucide-react'
 import StatusBadge from '@/components/common/StatusBadge'
 import { CONTRACT_STATUS, PAYMENT_SCHEMES } from '@/utils/contractConstants'
 import { getStatusConfig } from '@/utils/projectConstants'
+import contractsService from '@/services/contractsService'
 
 const formatPrice = (n) => n ? `$${Number(n).toLocaleString('es-MX')}` : '—'
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'
@@ -18,6 +20,41 @@ const InfoRow = ({ icon: Icon, label, value }) => (
 
 const ContractDetail = ({ contract, onClose }) => {
   if (!contract) return null
+
+  const [files, setFiles] = useState(contract.files || [])
+  const [uploading, setUploading] = useState(false)
+
+  const handleFileUpload = async (e) => {
+    const selectedFiles = Array.from(e.target.files)
+    if (selectedFiles.length === 0) return
+    setUploading(true)
+    try {
+      await contractsService.uploadFiles(contract._id, selectedFiles)
+      // Recargar contrato para ver archivos actualizados
+      const res = await contractsService.getById(contract._id)
+      setFiles(res.data.files || [])
+    } catch (err) {
+      console.error('Error al subir archivos:', err)
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  const handleRemoveFile = async (fileName) => {
+    try {
+      await contractsService.removeFile(contract._id, fileName)
+      setFiles(prev => prev.filter(f => f.fileName !== fileName))
+    } catch (err) {
+      console.error('Error al eliminar archivo:', err)
+    }
+  }
+
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
+    return (bytes / 1048576).toFixed(1) + ' MB'
+  }
 
   const cStatus = getStatusConfig(CONTRACT_STATUS, contract.status)
   const scheme = PAYMENT_SCHEMES.find(p => p.value === contract.paymentScheme)
@@ -100,6 +137,47 @@ const ContractDetail = ({ contract, onClose }) => {
             </div>
             {contract.notary && <InfoRow icon={FileText} label="Notaría" value={contract.notary} />}
           </div>
+          {/* Archivos adjuntos */}
+<div className="p-4 rounded-xl border" style={{ borderColor: 'var(--color-border-light)', background: 'var(--color-surface)' }}>
+  <div className="flex items-center justify-between mb-3">
+    <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-accent)' }}>
+      Archivos Adjuntos ({files.length})
+    </p>
+    <label className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg cursor-pointer transition-all hover:shadow-sm text-white" style={{ background: 'var(--color-primary)' }}>
+      <Upload size={13} />
+      {uploading ? 'Subiendo...' : 'Subir archivos'}
+      <input type="file" multiple onChange={handleFileUpload} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx" disabled={uploading} />
+    </label>
+  </div>
+
+  {files.length === 0 ? (
+    <div className="text-center py-6">
+      <Paperclip size={24} className="mx-auto mb-2" style={{ color: 'var(--color-border)' }} />
+      <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>No hay archivos adjuntos</p>
+    </div>
+  ) : (
+    <div className="space-y-2">
+      {files.map((file, idx) => (
+        <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-white border border-[var(--color-border-light)]">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-info-bg)' }}>
+              <File size={14} style={{ color: 'var(--color-info)' }} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text)' }}>{file.originalName}</p>
+              <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                {formatFileSize(file.size)} · {new Date(file.uploadedAt).toLocaleDateString('es-MX')}
+              </p>
+            </div>
+          </div>
+          <button onClick={() => handleRemoveFile(file.fileName)} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0" title="Eliminar">
+            <Trash2 size={14} style={{ color: 'var(--color-danger)' }} />
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
 
           {/* Notas */}
           {contract.notes && (
