@@ -2,11 +2,18 @@ import axios from 'axios'
 import { getToken, removeToken } from '../utils/storage'  
 
 const rawApiUrl = import.meta.env.VITE_API_URL || ''
+const serverUrl = import.meta.env.VITE_SERVER_URL || ''
 
 const API_BASE_URL = rawApiUrl.startsWith('http://') || rawApiUrl.startsWith('https://')
     ? rawApiUrl
     : rawApiUrl
         ? `http://${rawApiUrl}`
+        : ''
+
+const SERVER_BASE_URL = serverUrl.startsWith('http://') || serverUrl.startsWith('https://')
+    ? serverUrl
+    : serverUrl
+        ? `http://${serverUrl}`
         : ''
 
 const apiClient = axios.create({
@@ -52,5 +59,7 @@ apiClient.interceptors.response.use(
     }
 )  
 
+
+
 export default apiClient
-export { API_BASE_URL }
+export { API_BASE_URL , SERVER_BASE_URL}

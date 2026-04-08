@@ -4,6 +4,7 @@ import StatusBadge from '@/components/common/StatusBadge'
 import { CONTRACT_STATUS, PAYMENT_SCHEMES } from '@/utils/contractConstants'
 import { getStatusConfig } from '@/utils/projectConstants'
 import contractsService from '@/services/contractsService'
+import { SERVER_BASE_URL } from '@/api/axiosConfig'
 
 const formatPrice = (n) => n ? `$${Number(n).toLocaleString('es-MX')}` : '—'
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'
@@ -48,6 +49,11 @@ const ContractDetail = ({ contract, onClose }) => {
     } catch (err) {
       console.error('Error al eliminar archivo:', err)
     }
+  }
+
+  const handleFileView = (file)=>{
+    const pathFile = `${SERVER_BASE_URL}/${file.path}`
+    console.log(pathFile)
   }
 
   const formatFileSize = (bytes) => {
@@ -158,7 +164,9 @@ const ContractDetail = ({ contract, onClose }) => {
   ) : (
     <div className="space-y-2">
       {files.map((file, idx) => (
-        <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-white border border-[var(--color-border-light)]">
+        <div key={idx} 
+        className="flex items-center justify-between p-3 rounded-lg bg-white border border-[var(--color-border-light)]"
+        onClick={()=>handleFileView(file)}>
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-info-bg)' }}>
               <File size={14} style={{ color: 'var(--color-info)' }} />
