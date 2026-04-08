@@ -5,6 +5,7 @@ import { CONTRACT_STATUS, PAYMENT_SCHEMES } from '@/utils/contractConstants'
 import { getStatusConfig } from '@/utils/projectConstants'
 import contractsService from '@/services/contractsService'
 import { SERVER_BASE_URL } from '@/api/axiosConfig'
+import { WindArrowDown } from 'lucide-react'
 
 const formatPrice = (n) => n ? `$${Number(n).toLocaleString('es-MX')}` : '—'
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'
@@ -53,7 +54,7 @@ const ContractDetail = ({ contract, onClose }) => {
 
   const handleFileView = (file)=>{
     const pathFile = `${SERVER_BASE_URL}/${file.path}`
-    console.log(pathFile)
+    window.open(pathFile, '_blank', 'noopener,noreferrer')
   }
 
   const formatFileSize = (bytes) => {
