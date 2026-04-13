@@ -1,0 +1,58 @@
+import apiServices from '@/api/apiServices'
+
+const paymentsService = {
+
+  async getAlerts() {
+    const { data } = await apiServices.get('/payments/alerts')
+    return data
+  },
+
+  async getByContract(contractId) {
+    const { data } = await apiServices.get(`/payments/contract/${contractId}`)
+    return data
+  },
+
+  async getSummary(contractId) {
+    const { data } = await apiServices.get(`/payments/summary/${contractId}`)
+    return data
+  },
+
+  async generateSchedule(contractId) {
+    const { data } = await apiServices.post(`/payments/generate/${contractId}`)
+    return data
+  },
+
+  async registerPayment(paymentId, paymentData) {
+    const { data } = await apiServices.post(`/payments/register/${paymentId}`, paymentData)
+    return data
+  },
+
+  async delete(id) {
+    const { data } = await apiServices.delete(`/payments/${id}`)
+    return data
+  },
+
+  async deleteByContract(contractId) {
+    const { data } = await apiServices.delete(`/payments/contract/${contractId}`)
+    return data
+  },
+
+  async uploadVouchers(paymentId, files) {
+  const formData = new FormData()
+  files.forEach(file => formData.append('vouchers', file))
+
+  const { data } = await apiServices.post(
+    `/payments/${paymentId}/vouchers`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+  return data
+},
+
+async removeVoucher(paymentId, fileName) {
+  const { data } = await apiServices.delete(`/payments/${paymentId}/vouchers/${fileName}`)
+  return data
+}
+}
+
+export default paymentsService

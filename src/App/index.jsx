@@ -7,6 +7,7 @@ import UsersPage from '@/Pages/Users'
 import ProjectsPage from '@/Pages/Projects'
 import ProjectDetail from '@/Pages/Projects/ProjectDetail'
 import ContractsPage from '@/Pages/Contracts'
+import PaymentsPage from '@/Pages/Payments'
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuth()
@@ -38,7 +39,7 @@ const AppContent = () => {
                 <Route path="/proyectos" element={<ProjectsPage />} />
                 <Route path="/proyectos/:id" element={<ProjectDetail />} />
                 <Route path="/contratos" element={<ContractsPage />} />
-                <Route path="/pagos" element={<ComingSoon label="Pagos" />} />
+                <Route path="/pagos" element={<PaymentsPage />} />
                 <Route path="/entregas" element={<ComingSoon label="Entregas" />} />
                 <Route path="/reportes" element={<ComingSoon label="Reportes" />} />
                 <Route path="/" element={<Navigate to="/dashboard" />} />
