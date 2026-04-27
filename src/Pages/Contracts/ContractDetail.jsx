@@ -10,8 +10,10 @@ import { PAYMENT_STATUS } from '@/utils/paymentConstants'
 import { getStatusConfig } from '@/utils/projectConstants'
 import paymentsService from '@/services/paymentsService'
 import { API_BASE_URL } from '@/api/axiosConfig'
+import { formatUSD, formatMXN, convertToMXN, formatExchangeRate, formatExchangeRateDate } from '@/utils/currency'
+import DualPrice from '@/components/common/DualPrice'
 
-const formatPrice = (n) => n ? `$${Number(n).toLocaleString('es-MX')}` : '—'
+const formatPrice = (n) => formatUSD(n)
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'
 const formatDateShort = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 const formatFileSize = (bytes) => {
@@ -148,11 +150,39 @@ const ContractDetail = ({ contract, onClose }) => {
 
           {/* Condiciones económicas */}
           <div className="p-4 rounded-xl border" style={{ borderColor: 'var(--color-border-light)', background: 'var(--color-surface)' }}>
-            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--color-accent)' }}>Condiciones Económicas</p>
-            <div className="grid grid-cols-2 gap-x-6">
-              <InfoRow icon={DollarSign} label="Precio de venta" value={formatPrice(contract.salePrice)} />
-              <InfoRow icon={DollarSign} label="Enganche" value={formatPrice(contract.downPayment)} />
-              <InfoRow icon={DollarSign} label="Mensualidad" value={formatPrice(contract.monthlyPayment)} />
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-accent)' }}>Condiciones Económicas</p>
+              {contract.exchangeRate && (
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>TC del contrato</p>
+                  <p className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
+                    {formatExchangeRate(contract.exchangeRate)} <span className="font-normal" style={{ color: 'var(--color-text-muted)' }}>· {formatExchangeRateDate(contract.exchangeRateDate)}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <div className="flex items-start gap-3 py-2">
+                <DollarSign size={15} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Precio de venta</p>
+                  <DualPrice usd={contract.salePrice} rate={contract.exchangeRate} size="md" />
+                </div>
+              </div>
+              <div className="flex items-start gap-3 py-2">
+                <DollarSign size={15} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Enganche</p>
+                  <DualPrice usd={contract.downPayment} rate={contract.exchangeRate} size="md" />
+                </div>
+              </div>
+              <div className="flex items-start gap-3 py-2">
+                <DollarSign size={15} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Mensualidad</p>
+                  <DualPrice usd={contract.monthlyPayment} rate={contract.exchangeRate} size="md" />
+                </div>
+              </div>
               <InfoRow icon={FileText} label="Total de pagos" value={contract.totalPayments || '—'} />
               <InfoRow icon={FileText} label="Esquema de pago" value={scheme?.label} />
             </div>
@@ -193,15 +223,18 @@ const ContractDetail = ({ contract, onClose }) => {
                 {summary && (
                   <div className="grid grid-cols-4 gap-3 mb-4">
                     {[
-                      { label: 'Total', value: formatPrice(summary.totalExpected), icon: DollarSign, color: 'var(--color-primary)' },
-                      { label: 'Cobrado', value: formatPrice(summary.totalPaid), icon: CheckCircle, color: 'var(--color-success)' },
-                      { label: 'Pendiente', value: formatPrice(summary.totalBalance), icon: Clock, color: 'var(--color-warning)' },
-                      { label: 'Vencidos', value: summary.overdueCount, icon: AlertTriangle, color: 'var(--color-danger)' },
+                      { label: 'Total', value: formatUSD(summary.totalExpected), mxn: convertToMXN(summary.totalExpected, contract.exchangeRate), icon: DollarSign, color: 'var(--color-primary)' },
+                      { label: 'Cobrado', value: formatUSD(summary.totalPaid), mxn: convertToMXN(summary.totalPaid, contract.exchangeRate), icon: CheckCircle, color: 'var(--color-success)' },
+                      { label: 'Pendiente', value: formatUSD(summary.totalBalance), mxn: convertToMXN(summary.totalBalance, contract.exchangeRate), icon: Clock, color: 'var(--color-warning)' },
+                      { label: 'Vencidos', value: summary.overdueCount, mxn: null, icon: AlertTriangle, color: 'var(--color-danger)' },
                     ].map((s, i) => (
                       <div key={i} className="text-center p-3 rounded-lg bg-white border" style={{ borderColor: 'var(--color-border-light)' }}>
                         <s.icon size={16} className="mx-auto mb-1" style={{ color: s.color }} />
                         <p className="text-sm font-bold" style={{ color: s.color }}>{s.value}</p>
-                        <p className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>{s.label}</p>
+                        {s.mxn !== null && contract.exchangeRate && (
+                          <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>≈ {formatMXN(s.mxn)}</p>
+                        )}
+                        <p className="text-[10px] font-medium mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{s.label}</p>
                       </div>
                     ))}
                   </div>
@@ -314,6 +347,18 @@ const ContractDetail = ({ contract, onClose }) => {
                                 <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{p.paidDate ? formatDateShort(p.paidDate) : '—'}</p>
                               </div>
                             </div>
+                            {p.lastExchangeRate && (
+                              <div className="grid grid-cols-2 gap-4 mb-3 p-2 rounded-md" style={{ background: 'var(--color-accent-muted)' }}>
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Último TC usado</p>
+                                  <p className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>{formatExchangeRate(p.lastExchangeRate)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Fecha TC</p>
+                                  <p className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>{formatExchangeRateDate(p.lastExchangeRateDate)}</p>
+                                </div>
+                              </div>
+                            )}
 
                             {p.notes && (
                               <div className="mb-3">
@@ -330,16 +375,24 @@ const ContractDetail = ({ contract, onClose }) => {
                                 </p>
                                 <div className="space-y-1">
                                   {p.movements.map((m, mi) => (
-                                    <div key={mi} className="flex items-center justify-between px-3 py-2 rounded-md bg-[var(--color-surface)] text-xs">
-                                      <div className="flex items-center gap-2">
-                                        <CheckCircle size={12} style={{ color: 'var(--color-success)' }} />
-                                        <span style={{ color: 'var(--color-text-secondary)' }}>
-                                          {m.paymentMethod || 'Pago'} {m.reference ? `· ${m.reference}` : ''}
-                                        </span>
+                                    <div key={mi} className="px-3 py-2 rounded-md bg-[var(--color-surface)] text-xs">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <div className="flex items-center gap-2">
+                                          <CheckCircle size={12} style={{ color: 'var(--color-success)' }} />
+                                          <span style={{ color: 'var(--color-text-secondary)' }}>
+                                            {m.paymentMethod || 'Pago'} {m.reference ? `· ${m.reference}` : ''}
+                                          </span>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                          <span className="font-bold" style={{ color: 'var(--color-success)' }}>{formatUSD(m.amount)}</span>
+                                          {m.mxnEquivalent && (
+                                            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>≈ {formatMXN(m.mxnEquivalent)}</span>
+                                          )}
+                                        </div>
                                       </div>
-                                      <div className="flex items-center gap-3">
-                                        <span className="font-bold" style={{ color: 'var(--color-success)' }}>{formatPrice(m.amount)}</span>
-                                        <span style={{ color: 'var(--color-text-muted)' }}>{formatDateShort(m.registeredAt)}</span>
+                                      <div className="flex items-center justify-between text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                                        <span>{m.exchangeRate ? `TC: ${formatExchangeRate(m.exchangeRate)}` : ''}</span>
+                                        <span>{formatDateShort(m.registeredAt)}</span>
                                       </div>
                                     </div>
                                   ))}

@@ -12,7 +12,9 @@ import projectsService from '@/services/projectsService'
 import unitsService from '@/services/unitsService'
 import { PROJECT_STATUS, UNIT_STATUS, UNIT_TYPES, getStatusConfig } from '@/utils/projectConstants'
 
-const formatPrice = (n) => n ? `$${Number(n).toLocaleString('es-MX')}` : '—'
+import { formatUSD } from '@/utils/currency'
+
+const formatPrice = (n) => formatUSD(n)
 
 const ProjectDetail = () => {
   const { id } = useParams()
@@ -183,7 +185,7 @@ const ProjectDetail = () => {
           <table className="w-full">
             <thead>
               <tr style={{ background: 'var(--color-surface-sunken)' }}>
-                {['Unidad', 'Tipo', 'm²', 'Rec.', 'Baños', 'Est.', 'Bodega', 'Precio Lista', 'Estado', ''].map((h, i) => (
+                {['Unidad', 'Tipo', 'm²', 'Rec.', 'Baños', 'Est.', 'Bodega', 'Precio Lista (USD)', 'Estado', ''].map((h, i) => (
                   <th key={i} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border-light)' }}>{h}</th>
                 ))}
               </tr>

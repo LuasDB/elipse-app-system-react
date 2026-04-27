@@ -4,8 +4,10 @@ import { UNIT_TYPES, UNIT_STATUS, ORIENTATIONS } from '@/utils/projectConstants'
 
 const initialForm = {
   identifier: '', unitType: 'departamento', floor: '', orientation: '',
-  totalArea: '', builtArea: '', bedrooms: '', bathrooms: '', halfBathrooms: '',
-  parkingSpaces: '', parkingNumbers: '', hasStorage: false, storageNumber: '',
+  totalArea: '', builtArea: '', coveredArea: '', openArea: '',
+  bedrooms: '', bathrooms: '', halfBathrooms: '',
+  parkingSpaces: '', parkingNumbers: '',
+  hasStorage: false, storageNumber: '', storageArea: '',
   hasTerrace: false, terraceArea: '', hasGarden: false, gardenArea: '',
   listPrice: '', finalPrice: '', status: 'disponible', notes: '',
 }
@@ -21,9 +23,10 @@ const UnitFormModal = ({ isOpen, onClose, onSubmit, unit, loading }) => {
         identifier: unit.identifier || '', unitType: unit.unitType || 'departamento',
         floor: unit.floor || '', orientation: unit.orientation || '',
         totalArea: unit.totalArea || '', builtArea: unit.builtArea || '',
+        coveredArea: unit.coveredArea || '', openArea: unit.openArea || '',
         bedrooms: unit.bedrooms || '', bathrooms: unit.bathrooms || '', halfBathrooms: unit.halfBathrooms || '',
         parkingSpaces: unit.parkingSpaces || '', parkingNumbers: unit.parkingNumbers || '',
-        hasStorage: unit.hasStorage || false, storageNumber: unit.storageNumber || '',
+        hasStorage: unit.hasStorage || false, storageNumber: unit.storageNumber || '', storageArea: unit.storageArea || '',
         hasTerrace: unit.hasTerrace || false, terraceArea: unit.terraceArea || '',
         hasGarden: unit.hasGarden || false, gardenArea: unit.gardenArea || '',
         listPrice: unit.listPrice || '', finalPrice: unit.finalPrice || '',
@@ -140,6 +143,16 @@ const UnitFormModal = ({ isOpen, onClose, onSubmit, unit, loading }) => {
             </div>
             <div />
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Superficie techada (m²)</label>
+              <input type="number" step="0.01" name="coveredArea" value={form.coveredArea} onChange={handleChange} placeholder="80.0" className={inputClass()} />
+            </div>
+            <div>
+              <label className={labelClass}>Superficie abierta (m²)</label>
+              <input type="number" step="0.01" name="openArea" value={form.openArea} onChange={handleChange} placeholder="40.5" className={inputClass()} />
+            </div>
+          </div>
 
           {/* Espacios adicionales */}
           {sectionLabel('Espacios Adicionales')}
@@ -157,17 +170,25 @@ const UnitFormModal = ({ isOpen, onClose, onSubmit, unit, loading }) => {
           {/* Toggles */}
           <div className="space-y-3">
             {/* Bodega */}
-            <div className="flex items-center justify-between p-3 rounded-lg border border-[var(--color-border-light)] bg-[var(--color-surface)]">
-              <div className="flex items-center gap-3">
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" name="hasStorage" checked={form.hasStorage} onChange={handleChange} className="sr-only peer" />
-                  <div className="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:bg-[var(--color-success)] transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4 after:shadow-sm" />
-                </label>
-                <span className="text-sm font-medium text-[var(--color-text)]">Bodega</span>
+            <div className="p-3 rounded-lg border border-[var(--color-border-light)] bg-[var(--color-surface)]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" name="hasStorage" checked={form.hasStorage} onChange={handleChange} className="sr-only peer" />
+                    <div className="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:bg-[var(--color-success)] transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4 after:shadow-sm" />
+                  </label>
+                  <span className="text-sm font-medium text-[var(--color-text)]">Bodega</span>
+                </div>
+                {form.hasStorage && (
+                  <div className="flex items-center gap-2">
+                    <input type="text" name="storageNumber" value={form.storageNumber} onChange={handleChange} placeholder="No. bodega" className="w-32 px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30" />
+                    <div className="relative">
+                      <input type="number" step="0.01" name="storageArea" value={form.storageArea} onChange={handleChange} placeholder="m²" className="w-24 px-3 py-1.5 pr-8 text-sm rounded-lg border border-[var(--color-border)] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30" />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style={{ color: 'var(--color-text-muted)' }}>m²</span>
+                    </div>
+                  </div>
+                )}
               </div>
-              {form.hasStorage && (
-                <input type="text" name="storageNumber" value={form.storageNumber} onChange={handleChange} placeholder="No. bodega" className="w-32 px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30" />
-              )}
             </div>
             {/* Terraza */}
             <div className="flex items-center justify-between p-3 rounded-lg border border-[var(--color-border-light)] bg-[var(--color-surface)]">
@@ -198,15 +219,21 @@ const UnitFormModal = ({ isOpen, onClose, onSubmit, unit, loading }) => {
           </div>
 
           {/* Precios */}
-          {sectionLabel('Datos Comerciales')}
+          {sectionLabel('Datos Comerciales (USD)')}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>Precio de lista (MXN)</label>
-              <input type="number" name="listPrice" value={form.listPrice} onChange={handleChange} placeholder="2,500,000" className={inputClass()} />
+              <label className={labelClass}>Precio de lista (USD)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <input type="number" step="0.01" name="listPrice" value={form.listPrice} onChange={handleChange} placeholder="150,000" className={`pl-8 ${inputClass()}`} />
+              </div>
             </div>
             <div>
-              <label className={labelClass}>Precio de venta final (MXN)</label>
-              <input type="number" name="finalPrice" value={form.finalPrice} onChange={handleChange} placeholder="Se llena al cerrar" className={inputClass()} />
+              <label className={labelClass}>Precio de venta final (USD)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <input type="number" step="0.01" name="finalPrice" value={form.finalPrice} onChange={handleChange} placeholder="Se llena al cerrar" className={`pl-8 ${inputClass()}`} />
+              </div>
             </div>
           </div>
 

@@ -7,6 +7,14 @@ const paymentsService = {
     return data
   },
 
+  async getCollectionsByPeriod(startDate, endDate) {
+    const params = new URLSearchParams()
+    params.append('startDate', startDate)
+    params.append('endDate', endDate)
+    const { data } = await apiServices.get(`/payments/collections-by-period?${params.toString()}`)
+    return data
+  },
+
   async getByContract(contractId) {
     const { data } = await apiServices.get(`/payments/contract/${contractId}`)
     return data

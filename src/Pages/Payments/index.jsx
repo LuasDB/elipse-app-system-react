@@ -11,8 +11,10 @@ import paymentsService from '@/services/paymentsService'
 import contractsService from '@/services/contractsService'
 import { PAYMENT_STATUS } from '@/utils/paymentConstants'
 import { getStatusConfig } from '@/utils/projectConstants'
+import { formatUSD, formatMXN, convertToMXN } from '@/utils/currency'
+import DualPrice from '@/components/common/DualPrice'
 
-const formatPrice = (n) => n ? `$${Number(n).toLocaleString('es-MX')}` : '$0'
+const formatPrice = (n) => formatUSD(n)
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
 const PaymentsPage = () => {
@@ -142,10 +144,10 @@ const PaymentsPage = () => {
       {summary && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           {[
-            { label: 'Total contrato', value: formatPrice(summary.totalExpected), icon: DollarSign, color: 'var(--color-primary)', bg: 'var(--color-info-bg)' },
-            { label: 'Cobrado', value: formatPrice(summary.totalPaid), icon: CheckCircle, color: 'var(--color-success)', bg: 'var(--color-success-bg)' },
-            { label: 'Saldo pendiente', value: formatPrice(summary.totalBalance), icon: Clock, color: 'var(--color-warning)', bg: 'var(--color-warning-bg)' },
-            { label: 'Vencidos', value: summary.overdueCount, icon: AlertTriangle, color: 'var(--color-danger)', bg: 'var(--color-danger-bg)' },
+            { label: 'Total contrato', value: formatPrice(summary.totalExpected), mxn: selectedContractData?.exchangeRate ? formatMXN(convertToMXN(summary.totalExpected, selectedContractData.exchangeRate)) : null, icon: DollarSign, color: 'var(--color-primary)', bg: 'var(--color-info-bg)' },
+            { label: 'Cobrado', value: formatPrice(summary.totalPaid), mxn: selectedContractData?.exchangeRate ? formatMXN(convertToMXN(summary.totalPaid, selectedContractData.exchangeRate)) : null, icon: CheckCircle, color: 'var(--color-success)', bg: 'var(--color-success-bg)' },
+            { label: 'Saldo pendiente', value: formatPrice(summary.totalBalance), mxn: selectedContractData?.exchangeRate ? formatMXN(convertToMXN(summary.totalBalance, selectedContractData.exchangeRate)) : null, icon: Clock, color: 'var(--color-warning)', bg: 'var(--color-warning-bg)' },
+            { label: 'Vencidos', value: summary.overdueCount, mxn: null, icon: AlertTriangle, color: 'var(--color-danger)', bg: 'var(--color-danger-bg)' },
           ].map((s, i) => (
             <div key={i} className="flex items-center gap-4 p-4 rounded-xl border bg-white" style={{ borderColor: 'var(--color-border-light)', boxShadow: 'var(--shadow-sm)' }}>
               <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: s.bg }}>
@@ -153,6 +155,7 @@ const PaymentsPage = () => {
               </div>
               <div>
                 <p className="text-lg font-bold tracking-tight" style={{ color: s.color }}>{s.value}</p>
+                {s.mxn && <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>≈ {s.mxn}</p>}
                 <p className="text-[11px] font-medium" style={{ color: 'var(--color-text-muted)' }}>{s.label}</p>
               </div>
             </div>
@@ -202,7 +205,7 @@ const PaymentsPage = () => {
             <table className="w-full">
               <thead>
                 <tr style={{ background: 'var(--color-surface-sunken)' }}>
-                  {['#', 'Concepto', 'Vencimiento', 'Esperado', 'Pagado', 'Saldo', 'Estado', 'Acción'].map((h, i) => (
+                  {['#', 'Concepto', 'Vencimiento', 'Esperado (USD)', 'Pagado (USD)', 'Saldo (USD)', 'Estado', 'Acción'].map((h, i) => (
                     <th key={i} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border-light)' }}>{h}</th>
                   ))}
                 </tr>
@@ -228,33 +231,33 @@ const PaymentsPage = () => {
                   return (
                     <tr key={p._id || idx} className={`group transition-colors ${isOverdue ? 'bg-red-50/40' : 'hover:bg-[var(--color-surface)]'}`} style={{ borderBottom: '1px solid var(--color-border-light)' }}>
                       <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>{p.paymentNumber}</td>
-                      {/* Indicador para descarga */}
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div>
-                              <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>{p.concept}</span>
-                              {p.reference && <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>Ref: {p.reference}</p>}
-                            </div>
-                            {p.vouchers && p.vouchers.length > 0 && (
-                              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: 'var(--color-info-bg)', color: 'var(--color-info)' }}>
-                                <Paperclip size={10} />{p.vouchers.length}
-                              </span>
-                            )}
-                          </div>
-                        </td>
                       <td className="px-4 py-3">
-                        <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>{p.concept}</span>
-                        {p.reference && <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>Ref: {p.reference}</p>}
-                        
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>{p.concept}</span>
+                            {p.reference && <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>Ref: {p.reference}</p>}
+                          </div>
+                          {p.vouchers && p.vouchers.length > 0 && (
+                            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: 'var(--color-info-bg)', color: 'var(--color-info)' }}>
+                              <Paperclip size={10} />{p.vouchers.length}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-sm ${isOverdue ? 'font-semibold' : ''}`} style={{ color: isOverdue ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
                           {formatDate(p.dueDate)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-secondary)' }}>{formatPrice(p.expectedAmount)}</td>
-                      <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--color-success)' }}>{formatPrice(p.paidAmount)}</td>
-                      <td className="px-4 py-3 text-sm font-semibold" style={{ color: p.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>{formatPrice(p.balance)}</td>
+                      <td className="px-4 py-3">
+                        <DualPrice usd={p.expectedAmount} rate={p.contractExchangeRate} size="sm" color="var(--color-text-secondary)" />
+                      </td>
+                      <td className="px-4 py-3">
+                        <DualPrice usd={p.paidAmount} rate={p.lastExchangeRate || p.contractExchangeRate} size="sm" color="var(--color-success)" />
+                      </td>
+                      <td className="px-4 py-3">
+                        <DualPrice usd={p.balance} rate={p.contractExchangeRate} size="sm" color={p.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)'} />
+                      </td>
                       <td className="px-4 py-3"><StatusBadge label={pStatus.label} color={pStatus.color} bg={pStatus.bg} size="xs" /></td>
                       <td className="px-4 py-3">
                         {p.status !== 'pagado' && (

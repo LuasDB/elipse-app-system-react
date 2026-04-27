@@ -12,8 +12,7 @@ import Toast from '@/components/common/Toast'
 import contractsService from '@/services/contractsService'
 import { CONTRACT_STATUS } from '@/utils/contractConstants'
 import { getStatusConfig } from '@/utils/projectConstants'
-
-const formatPrice = (n) => n ? `$${Number(n).toLocaleString('es-MX')}` : '—'
+import DualPrice from '@/components/common/DualPrice'
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
 const ContractsPage = () => {
@@ -155,7 +154,7 @@ const ContractsPage = () => {
           <table className="w-full">
             <thead>
               <tr style={{ background: 'var(--color-surface-sunken)' }}>
-                {['Contrato', 'Proyecto', 'Unidad', 'Comprador', 'Precio Venta', 'Estado', 'Fecha', ''].map((h, i) => (
+                {['Contrato', 'Proyecto', 'Unidad', 'Comprador', 'Precio Venta (USD)', 'Estado', 'Fecha', ''].map((h, i) => (
                   <th key={i} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border-light)' }}>{h}</th>
                 ))}
               </tr>
@@ -202,7 +201,7 @@ const ContractsPage = () => {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>{formatPrice(contract.salePrice)}</span>
+                      <DualPrice usd={contract.salePrice} rate={contract.exchangeRate} size="sm" />
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge label={cStatus.label} color={cStatus.color} bg={cStatus.bg} size="xs" />

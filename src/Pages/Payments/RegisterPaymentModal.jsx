@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
-import { X, DollarSign, CreditCard, Upload, File, Trash2, ExternalLink, Paperclip } from 'lucide-react'
+import { X, DollarSign, CreditCard, Upload, File, Trash2, ExternalLink, Paperclip, TrendingUp } from 'lucide-react'
 import { PAYMENT_METHODS } from '@/utils/paymentConstants'
 import { API_BASE_URL } from '@/api/axiosConfig'
+import { convertToMXN, formatMXN, formatUSD } from '@/utils/currency'
 
-const formatPrice = (n) => n ? `$${Number(n).toLocaleString('es-MX')}` : '$0'
+const todayISO = () => new Date().toISOString().slice(0, 10)
+const formatPrice = (n) => n ? `$${Number(n).toLocaleString('en-US')}` : '$0'
 const formatFileSize = (bytes) => {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
@@ -11,13 +13,25 @@ const formatFileSize = (bytes) => {
 }
 
 const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading }) => {
-  const [form, setForm] = useState({ amount: '', paymentMethod: 'transferencia', reference: '', notes: '' })
+  const [form, setForm] = useState({
+    amount: '', paymentMethod: 'transferencia', reference: '', notes: '',
+    exchangeRate: '', exchangeRateDate: todayISO()
+  })
   const [errors, setErrors] = useState({})
   const [selectedFiles, setSelectedFiles] = useState([])
 
   useEffect(() => {
     if (payment) {
-      setForm({ amount: payment.balance || '', paymentMethod: 'transferencia', reference: '', notes: '' })
+      // Pre-cargar TC: usa el último TC del pago si existe, si no el del contrato
+      const defaultRate = payment.lastExchangeRate || payment.contractExchangeRate || ''
+      setForm({
+        amount: payment.balance || '',
+        paymentMethod: 'transferencia',
+        reference: '',
+        notes: '',
+        exchangeRate: defaultRate,
+        exchangeRateDate: todayISO()
+      })
     }
     setErrors({})
     setSelectedFiles([])
@@ -43,6 +57,8 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading }) =
     const errs = {}
     if (!form.amount || Number(form.amount) <= 0) errs.amount = 'Ingresa un monto válido'
     if (!form.paymentMethod) errs.paymentMethod = 'Selecciona un método'
+    if (!form.exchangeRate || Number(form.exchangeRate) <= 0) errs.exchangeRate = 'TC requerido'
+    if (!form.exchangeRateDate) errs.exchangeRateDate = 'Fecha del TC requerida'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -75,30 +91,58 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading }) =
 
         <div className="flex-1 overflow-y-auto">
           {/* Info card */}
-          <div className="px-6 pt-5">
+           <div className="px-6 pt-5">
             <div className="grid grid-cols-3 gap-3 p-3 rounded-lg" style={{ background: 'var(--color-surface)' }}>
               <div className="text-center">
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Esperado</p>
-                <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{formatPrice(payment.expectedAmount)}</p>
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Esperado USD</p>
+                <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{formatUSD(payment.expectedAmount)}</p>
               </div>
               <div className="text-center">
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Pagado</p>
-                <p className="text-sm font-bold" style={{ color: 'var(--color-success)' }}>{formatPrice(payment.paidAmount)}</p>
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Pagado USD</p>
+                <p className="text-sm font-bold" style={{ color: 'var(--color-success)' }}>{formatUSD(payment.paidAmount)}</p>
               </div>
               <div className="text-center">
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Saldo</p>
-                <p className="text-sm font-bold" style={{ color: payment.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>{formatPrice(payment.balance)}</p>
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Saldo USD</p>
+                <p className="text-sm font-bold" style={{ color: payment.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>{formatUSD(payment.balance)}</p>
               </div>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+           <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {/* Tipo de cambio del día */}
+            <div className="p-3 rounded-lg border-2" style={{ borderColor: 'var(--color-accent)', background: 'var(--color-accent-muted)' }}>
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp size={14} style={{ color: 'var(--color-accent)' }} />
+                <p className="text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>Tipo de cambio del día</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>TC (MXN/USD) <span className="text-red-400">*</span></label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                    <input type="number" step="0.0001" name="exchangeRate" value={form.exchangeRate} onChange={handleChange} placeholder="17.5000" className={`pl-8 ${inputClass('exchangeRate')}`} />
+                  </div>
+                  {errors.exchangeRate && <p className="text-xs text-red-500 mt-1">{errors.exchangeRate}</p>}
+                </div>
+                <div>
+                  <label className={labelClass}>Fecha TC <span className="text-red-400">*</span></label>
+                  <input type="date" name="exchangeRateDate" value={form.exchangeRateDate} onChange={handleChange} className={inputClass('exchangeRateDate')} />
+                  {errors.exchangeRateDate && <p className="text-xs text-red-500 mt-1">{errors.exchangeRateDate}</p>}
+                </div>
+              </div>
+            </div>
+
             <div>
-              <label className={labelClass}>Monto a pagar (MXN) <span className="text-red-400">*</span></label>
+              <label className={labelClass}>Monto a pagar (USD) <span className="text-red-400">*</span></label>
               <div className="relative">
                 <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input type="number" step="0.01" name="amount" value={form.amount} onChange={handleChange} placeholder="0.00" className={`pl-10 ${inputClass('amount')}`} />
               </div>
+              {form.amount && form.exchangeRate && (
+                <p className="text-[11px] mt-1" style={{ color: 'var(--color-success)' }}>
+                  ≈ {formatMXN(convertToMXN(form.amount, form.exchangeRate))}
+                </p>
+              )}
               {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount}</p>}
             </div>
 

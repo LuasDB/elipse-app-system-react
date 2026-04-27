@@ -1,16 +1,20 @@
 import { useState, useEffect, useCallback } from 'react'
-import { X, FileText, DollarSign, Calendar, UserPlus, Search } from 'lucide-react'
+import { X, FileText, DollarSign, Calendar, UserPlus, Search, TrendingUp } from 'lucide-react'
 import { CONTRACT_STATUS, PAYMENT_SCHEMES } from '@/utils/contractConstants'
+import { convertToMXN, formatMXN } from '@/utils/currency'
 import projectsService from '@/services/projectsService'
 import unitsService from '@/services/unitsService'
 import buyersService from '@/services/buyersService'
 import usersService from '@/services/usersService'
 import BuyerFormModal from './BuyerFormModal'
 
+const todayISO = () => new Date().toISOString().slice(0, 10)
+
 const initialForm = {
   projectId: '', unitId: '', buyerId: '', sellerId: '',
   contractNumber: '', status: 'promesa', paymentScheme: 'enganche_mensualidades',
   salePrice: '', downPayment: '', monthlyPayment: '', totalPayments: '',
+  exchangeRate: '', exchangeRateDate: todayISO(),
   promiseDate: '', signDate: '', notaryDate: '', deliveryDate: '',
   notary: '', notes: ''
 }
@@ -76,6 +80,8 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
         paymentScheme: contract.paymentScheme || 'enganche_mensualidades',
         salePrice: contract.salePrice || '', downPayment: contract.downPayment || '',
         monthlyPayment: contract.monthlyPayment || '', totalPayments: contract.totalPayments || '',
+        exchangeRate: contract.exchangeRate || '',
+        exchangeRateDate: contract.exchangeRateDate?.slice(0, 10) || todayISO(),
         promiseDate: contract.promiseDate?.slice(0, 10) || '',
         signDate: contract.signDate?.slice(0, 10) || '',
         notaryDate: contract.notaryDate?.slice(0, 10) || '',
@@ -95,6 +101,8 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
     if (!form.unitId) errs.unitId = 'Selecciona una unidad'
     if (!form.buyerId) errs.buyerId = 'Selecciona un comprador'
     if (!form.salePrice) errs.salePrice = 'El precio de venta es requerido'
+    if (!form.exchangeRate || Number(form.exchangeRate) <= 0) errs.exchangeRate = 'El tipo de cambio es requerido'
+    if (!form.exchangeRateDate) errs.exchangeRateDate = 'La fecha del TC es requerida'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -249,23 +257,73 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
               </div>
             </div>
 
+            {/* Tipo de cambio */}
+            {sectionLabel('Tipo de Cambio')}
+            <div className="p-4 rounded-lg border-2" style={{ borderColor: 'var(--color-accent)', background: 'var(--color-accent-muted)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp size={16} style={{ color: 'var(--color-accent)' }} />
+                <p className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+                  Los montos se capturan en USD y se convierten a MXN con este TC
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Tipo de cambio (MXN/USD) <span className="text-red-400">*</span></label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                    <input type="number" step="0.0001" name="exchangeRate" value={form.exchangeRate} onChange={handleChange} placeholder="17.5000" className={`pl-8 ${inputClass('exchangeRate')}`} />
+                  </div>
+                  {errors.exchangeRate && <p className="text-xs text-red-500 mt-1">{errors.exchangeRate}</p>}
+                </div>
+                <div>
+                  <label className={labelClass}>Fecha del TC <span className="text-red-400">*</span></label>
+                  <input type="date" name="exchangeRateDate" value={form.exchangeRateDate} onChange={handleChange} className={inputClass('exchangeRateDate')} />
+                  {errors.exchangeRateDate && <p className="text-xs text-red-500 mt-1">{errors.exchangeRateDate}</p>}
+                </div>
+              </div>
+            </div>
+
             {/* Montos */}
-            {sectionLabel('Condiciones Económicas')}
+            {sectionLabel('Condiciones Económicas (USD)')}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>Precio de venta (MXN) <span className="text-red-400">*</span></label>
-                <input type="number" name="salePrice" value={form.salePrice} onChange={handleChange} placeholder="2,500,000" className={inputClass('salePrice')} />
+                <label className={labelClass}>Precio de venta (USD) <span className="text-red-400">*</span></label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input type="number" step="0.01" name="salePrice" value={form.salePrice} onChange={handleChange} placeholder="150,000" className={`pl-8 ${inputClass('salePrice')}`} />
+                </div>
+                {form.exchangeRate && form.salePrice && (
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-success)' }}>
+                    ≈ {formatMXN(convertToMXN(form.salePrice, form.exchangeRate))}
+                  </p>
+                )}
                 {errors.salePrice && <p className="text-xs text-red-500 mt-1">{errors.salePrice}</p>}
               </div>
               <div>
-                <label className={labelClass}>Enganche (MXN)</label>
-                <input type="number" name="downPayment" value={form.downPayment} onChange={handleChange} placeholder="500,000" className={inputClass('downPayment')} />
+                <label className={labelClass}>Enganche (USD)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input type="number" step="0.01" name="downPayment" value={form.downPayment} onChange={handleChange} placeholder="30,000" className={`pl-8 ${inputClass('downPayment')}`} />
+                </div>
+                {form.exchangeRate && form.downPayment && (
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-success)' }}>
+                    ≈ {formatMXN(convertToMXN(form.downPayment, form.exchangeRate))}
+                  </p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>Mensualidad (MXN)</label>
-                <input type="number" name="monthlyPayment" value={form.monthlyPayment} onChange={handleChange} placeholder="25,000" className={inputClass('monthlyPayment')} />
+                <label className={labelClass}>Mensualidad (USD)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input type="number" step="0.01" name="monthlyPayment" value={form.monthlyPayment} onChange={handleChange} placeholder="1,500" className={`pl-8 ${inputClass('monthlyPayment')}`} />
+                </div>
+                {form.exchangeRate && form.monthlyPayment && (
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-success)' }}>
+                    ≈ {formatMXN(convertToMXN(form.monthlyPayment, form.exchangeRate))}/mes
+                  </p>
+                )}
               </div>
               <div>
                 <label className={labelClass}>Total de pagos</label>
