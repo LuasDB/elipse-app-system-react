@@ -13,6 +13,13 @@ import { API_BASE_URL } from '@/api/axiosConfig'
 import { formatUSD, formatMXN, convertToMXN, formatExchangeRate, formatExchangeRateDate } from '@/utils/currency'
 import DualPrice from '@/components/common/DualPrice'
 
+import { CONTRACT_MODALITIES, getModalityConfig } from '@/utils/contractConstants'
+import MilestoneTimeline from '@/components/common/MilestoneTimeline'
+import CompleteMilestoneModal from '@/components/common/CompleteMilestoneModal'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
+import Toast from '@/components/common/Toast'
+import { Hammer, Calendar as CalendarIcon, CheckCircle2, Lock } from 'lucide-react'
+
 const formatPrice = (n) => formatUSD(n)
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'
 const formatDateShort = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
@@ -64,14 +71,22 @@ const ContractDetail = ({ contract, onClose }) => {
   const [summary, setSummary] = useState(null)
   const [loadingPayments, setLoadingPayments] = useState(true)
   const [expandedPayment, setExpandedPayment] = useState(null)
+  // Estados para gestión de hitos (Línea 2)
+  const [completingMilestone, setCompletingMilestone] = useState(null)   // payment a completar
+  const [completingLoading, setCompletingLoading] = useState(false)
+  const [uncompleteMilestone, setUncompleteMilestone] = useState(null)   // payment a revertir
+  const [toast, setToast] = useState(null)
+
+  const isMilestonesContract = contract?.modality === 'milestones'
+  const milestonePayments = (payments || []).filter(p => p.isMilestone)
+                                            .sort((a, b) => (a.milestoneOrder || 0) - (b.milestoneOrder || 0))
 
   if (!contract) return null
 
   const cStatus = getStatusConfig(CONTRACT_STATUS, contract.status)
   const scheme = PAYMENT_SCHEMES.find(p => p.value === contract.paymentScheme)
 
-  useEffect(() => {
-    const loadPayments = async () => {
+  const loadPayments = async () => {
       try {
         setLoadingPayments(true)
         const [paymentsRes, summaryRes] = await Promise.all([
@@ -86,11 +101,43 @@ const ContractDetail = ({ contract, onClose }) => {
         setLoadingPayments(false)
       }
     }
+  useEffect(() => {
+    
     loadPayments()
   }, [contract._id])
 
   const togglePayment = (id) => {
     setExpandedPayment(expandedPayment === id ? null : id)
+  }
+
+  const handleCompleteMilestone = async ({ notes, completedAt }) => {
+    if (!completingMilestone) return
+    setCompletingLoading(true)
+    try {
+      await paymentsService.completeMilestone(completingMilestone._id, { notes, completedAt })
+      setToast({ message: 'Hito marcado como completado', type: 'success' })
+      setCompletingMilestone(null)
+      // Refrescar pagos
+      await loadPayments()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al completar el hito'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setCompletingLoading(false)
+    }
+  }
+
+  const handleUncompleteMilestone = async () => {
+    if (!uncompleteMilestone) return
+    try {
+      await paymentsService.uncompleteMilestone(uncompleteMilestone._id)
+      setToast({ message: 'Hito revertido a pendiente', type: 'success' })
+      setUncompleteMilestone(null)
+      await loadPayments()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al revertir el hito'
+      setToast({ message: msg, type: 'error' })
+    }
   }
 
   return (
@@ -208,6 +255,19 @@ const ContractDetail = ({ contract, onClose }) => {
               Seguimiento de Pagos
             </p>
 
+            {/* Timeline de hitos (solo Línea 2) */}
+              {isMilestonesContract && milestonePayments.length > 0 && (
+                <div className="mb-6">
+                  <MilestoneTimeline
+                    milestones={milestonePayments}
+                    exchangeRate={contract.exchangeRate}
+                    canManage={true}
+                    onComplete={(m) => setCompletingMilestone(m)}
+                    onUncomplete={(m) => setUncompleteMilestone(m)}
+                  />
+                </div>
+              )}
+
             {loadingPayments ? (
               <div className="flex items-center justify-center py-8">
                 <div className="w-6 h-6 border-2 border-gray-200 border-t-[var(--color-primary)] rounded-full animate-spin" />
@@ -308,7 +368,18 @@ const ContractDetail = ({ contract, onClose }) => {
 
                           {/* Status */}
                           <StatusBadge label={pStatus.label} color={pStatus.color} bg={pStatus.bg} size="xs" />
-
+                            {contract.modality && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                  style={{
+                    background: getModalityConfig(contract.modality).bg,
+                    color: getModalityConfig(contract.modality).color
+                  }}
+                >
+                  {contract.modality === 'milestones' ? <Hammer size={10} /> : <CalendarIcon size={10} />}
+                  {getModalityConfig(contract.modality).shortLabel}
+                </span>
+              )}
                           {/* Chevron */}
                           <div className="flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>
                             {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -466,6 +537,34 @@ const ContractDetail = ({ contract, onClose }) => {
           <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-gray-50 transition-colors">Cerrar</button>
         </div>
       </div>
+      {/* Modal: completar hito */}
+      <CompleteMilestoneModal
+        isOpen={!!completingMilestone}
+        onClose={() => setCompletingMilestone(null)}
+        onConfirm={handleCompleteMilestone}
+        milestone={completingMilestone}
+        loading={completingLoading}
+      />
+
+      {/* Confirm: revertir hito */}
+      <ConfirmDialog
+        isOpen={!!uncompleteMilestone}
+        onClose={() => setUncompleteMilestone(null)}
+        onConfirm={handleUncompleteMilestone}
+        title="Revertir hito"
+        message={`¿Confirmas revertir el hito "${uncompleteMilestone?.milestoneName || ''}" a pendiente? Solo es posible si no se han registrado pagos.`}
+        confirmText="Revertir"
+        variant="warning"
+      />
+
+      {/* Toast local */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   )
 }

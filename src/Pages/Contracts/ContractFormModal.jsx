@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { X, FileText, DollarSign, Calendar, UserPlus, Search, TrendingUp } from 'lucide-react'
-import { CONTRACT_STATUS, PAYMENT_SCHEMES } from '@/utils/contractConstants'
-import { convertToMXN, formatMXN } from '@/utils/currency'
+import { X, FileText, DollarSign, Calendar, UserPlus, Search, TrendingUp, Hammer, Plus, Trash2, AlertCircle } from 'lucide-react'
+import { CONTRACT_STATUS, PAYMENT_SCHEMES, CONTRACT_MODALITIES } from '@/utils/contractConstants'
+import { convertToMXN, formatMXN, formatUSD } from '@/utils/currency'
 import projectsService from '@/services/projectsService'
 import unitsService from '@/services/unitsService'
 import buyersService from '@/services/buyersService'
@@ -13,11 +13,15 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 const initialForm = {
   projectId: '', unitId: '', buyerId: '', sellerId: '',
   contractNumber: '', status: 'promesa', paymentScheme: 'enganche_mensualidades',
+  modality: 'monthly',                       // 'monthly' | 'milestones'
   salePrice: '', downPayment: '', monthlyPayment: '', totalPayments: '',
+  milestonesTemplate: [],                    // Array de hitos para Línea 2
   exchangeRate: '', exchangeRateDate: todayISO(),
   promiseDate: '', signDate: '', notaryDate: '', deliveryDate: '',
   notary: '', notes: ''
 }
+
+const emptyMilestone = () => ({ name: '', amount: '', estimatedDate: '' })
 
 const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => {
   const [form, setForm] = useState(initialForm)
@@ -78,8 +82,14 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
         buyerId: contract.buyerId || '', sellerId: contract.sellerId || '',
         contractNumber: contract.contractNumber || '', status: contract.status || 'promesa',
         paymentScheme: contract.paymentScheme || 'enganche_mensualidades',
+        modality: contract.modality || 'monthly',
         salePrice: contract.salePrice || '', downPayment: contract.downPayment || '',
         monthlyPayment: contract.monthlyPayment || '', totalPayments: contract.totalPayments || '',
+        milestonesTemplate: (contract.milestonesTemplate || []).map(m => ({
+          name: m.name || '',
+          amount: m.amount || '',
+          estimatedDate: m.estimatedDate?.slice(0, 10) || ''
+        })),
         exchangeRate: contract.exchangeRate || '',
         exchangeRateDate: contract.exchangeRateDate?.slice(0, 10) || todayISO(),
         promiseDate: contract.promiseDate?.slice(0, 10) || '',
@@ -103,6 +113,18 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
     if (!form.salePrice) errs.salePrice = 'El precio de venta es requerido'
     if (!form.exchangeRate || Number(form.exchangeRate) <= 0) errs.exchangeRate = 'El tipo de cambio es requerido'
     if (!form.exchangeRateDate) errs.exchangeRateDate = 'La fecha del TC es requerida'
+
+    // Validación específica de Línea 2
+    if (form.modality === 'milestones') {
+      if (!form.milestonesTemplate || form.milestonesTemplate.length === 0) {
+        errs.milestones = 'Debes agregar al menos un hito de obra'
+      } else {
+        form.milestonesTemplate.forEach((m, idx) => {
+          if (!m.name?.trim()) errs[`milestone_${idx}_name`] = 'Nombre requerido'
+          if (!m.amount || Number(m.amount) <= 0) errs[`milestone_${idx}_amount`] = 'Monto inválido'
+        })
+      }
+    }
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -114,10 +136,72 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }))
   }
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
+  // === Handlers de hitos (Línea 2) ===
+  const handleModalityChange = (modality) => {
+    setForm(prev => {
+      const next = { ...prev, modality }
+      // Si cambia a milestones y la lista está vacía, agregar uno por defecto
+      if (modality === 'milestones' && (!prev.milestonesTemplate || prev.milestonesTemplate.length === 0)) {
+        next.milestonesTemplate = [emptyMilestone()]
+      }
+      return next
+    })
+  }
+
+  const addMilestone = () => {
+    setForm(prev => ({
+      ...prev,
+      milestonesTemplate: [...(prev.milestonesTemplate || []), emptyMilestone()]
+    }))
+  }
+
+  const removeMilestone = (index) => {
+    setForm(prev => ({
+      ...prev,
+      milestonesTemplate: prev.milestonesTemplate.filter((_, i) => i !== index)
+    }))
+  }
+
+  const updateMilestone = (index, field, value) => {
+    setForm(prev => ({
+      ...prev,
+      milestonesTemplate: prev.milestonesTemplate.map((m, i) => i === index ? { ...m, [field]: value } : m)
+    }))
+  }
+
+  // === Cálculos derivados ===
+  const milestonesTotal = (form.milestonesTemplate || [])
+    .reduce((acc, m) => acc + (Number(m.amount) || 0), 0)
+  const downPaymentNum = Number(form.downPayment) || 0
+  const salePriceNum = Number(form.salePrice) || 0
+  const milestonesPlusDown = milestonesTotal + downPaymentNum
+  const milestonesDelta = salePriceNum - milestonesPlusDown
+  const milestonesMatch = salePriceNum > 0 && Math.abs(milestonesDelta) < 0.01
+
+  const handleSubmit = async (e) => {
+    e?.preventDefault?.()
     if (!validate()) return
-    onSubmit(form)
+
+    // Construir payload limpio según modalidad
+    const payload = { ...form }
+
+    if (payload.modality === 'monthly') {
+      // Limpiar hitos si está en mensualidades
+      payload.milestonesTemplate = []
+    } else {
+      // Limpiar campos de mensualidades si está en hitos
+      payload.monthlyPayment = 0
+      payload.totalPayments = 0
+      // Normalizar hitos con order
+      payload.milestonesTemplate = payload.milestonesTemplate.map((m, i) => ({
+        name: m.name.trim(),
+        amount: Number(m.amount),
+        estimatedDate: m.estimatedDate || null,
+        order: i + 1
+      }))
+    }
+
+    await onSubmit(payload)
   }
 
   // Buyer creation inline
@@ -283,6 +367,45 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
               </div>
             </div>
 
+            {/* Modalidad de seguimiento */}
+            {sectionLabel('Modalidad de Seguimiento')}
+            <div className="grid grid-cols-2 gap-3">
+              {CONTRACT_MODALITIES.map(m => {
+                const isActive = form.modality === m.value
+                return (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => handleModalityChange(m.value)}
+                    className={`relative p-4 rounded-xl border-2 text-left transition-all ${isActive ? 'shadow-md' : 'hover:border-gray-300'}`}
+                    style={{
+                      borderColor: isActive ? m.color : 'var(--color-border-light)',
+                      background: isActive ? m.bg : 'white'
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: m.bg }}>
+                        {m.value === 'milestones'
+                          ? <Hammer size={14} style={{ color: m.color }} />
+                          : <Calendar size={14} style={{ color: m.color }} />}
+                      </div>
+                      <span className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{m.label}</span>
+                      {isActive && <span className="ml-auto w-2 h-2 rounded-full" style={{ background: m.color }} />}
+                    </div>
+                    <p className="text-[11px] leading-snug" style={{ color: 'var(--color-text-muted)' }}>{m.description}</p>
+                  </button>
+                )
+              })}
+            </div>
+            {contract && form.modality !== contract.modality && (
+              <div className="flex items-start gap-2 p-3 rounded-lg" style={{ background: 'var(--color-warning-bg)' }}>
+                <AlertCircle size={14} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-warning)' }} />
+                <p className="text-[11px]" style={{ color: 'var(--color-text)' }}>
+                  Cambiar la modalidad regenerará el calendario de pagos. Los pagos previos del contrato se eliminarán y se crearán nuevos según la nueva configuración.
+                </p>
+              </div>
+            )}
+
             {/* Montos */}
             {sectionLabel('Condiciones Económicas (USD)')}
             <div className="grid grid-cols-2 gap-4">
@@ -312,24 +435,149 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass}>Mensualidad (USD)</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                  <input type="number" step="0.01" name="monthlyPayment" value={form.monthlyPayment} onChange={handleChange} placeholder="1,500" className={`pl-8 ${inputClass('monthlyPayment')}`} />
+            {/* Mensualidades — solo Línea 1 */}
+            {form.modality === 'monthly' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Mensualidad (USD)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                    <input type="number" step="0.01" name="monthlyPayment" value={form.monthlyPayment} onChange={handleChange} placeholder="1,500" className={`pl-8 ${inputClass('monthlyPayment')}`} />
+                  </div>
+                  {form.exchangeRate && form.monthlyPayment && (
+                    <p className="text-[11px] mt-1" style={{ color: 'var(--color-success)' }}>
+                      ≈ {formatMXN(convertToMXN(form.monthlyPayment, form.exchangeRate))}/mes
+                    </p>
+                  )}
                 </div>
-                {form.exchangeRate && form.monthlyPayment && (
-                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-success)' }}>
-                    ≈ {formatMXN(convertToMXN(form.monthlyPayment, form.exchangeRate))}/mes
-                  </p>
+                <div>
+                  <label className={labelClass}>Total de pagos</label>
+                  <input type="number" name="totalPayments" value={form.totalPayments} onChange={handleChange} placeholder="Ej: 36" className={inputClass('totalPayments')} />
+                </div>
+              </div>
+            )}
+
+            {/* Hitos de obra — solo Línea 2 */}
+            {form.modality === 'milestones' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Hammer size={14} style={{ color: 'var(--color-accent)' }} />
+                    <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-accent)' }}>Hitos de Obra</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addMilestone}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
+                    style={{ background: 'var(--color-accent)', color: 'white' }}
+                  >
+                    <Plus size={12} /> Agregar hito
+                  </button>
+                </div>
+
+                {errors.milestones && (
+                  <p className="text-xs text-red-500">{errors.milestones}</p>
+                )}
+
+                <div className="space-y-2">
+                  {(form.milestonesTemplate || []).map((m, idx) => (
+                    <div key={idx} className="p-3 rounded-lg border" style={{ borderColor: 'var(--color-border-light)', background: 'var(--color-surface)' }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold" style={{ background: 'var(--color-accent-muted)', color: 'var(--color-accent)' }}>
+                          {idx + 1}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Hito {idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeMilestone(idx)}
+                          className="ml-auto p-1 rounded hover:bg-red-50 transition-colors"
+                          title="Eliminar hito"
+                        >
+                          <Trash2 size={12} className="text-red-500" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-5">
+                          <input
+                            type="text"
+                            value={m.name}
+                            onChange={(e) => updateMilestone(idx, 'name', e.target.value)}
+                            placeholder="Nombre (ej: Cimentación)"
+                            className={`w-full px-2.5 py-1.5 text-sm rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 ${errors[`milestone_${idx}_name`] ? 'border-red-400' : 'border-[var(--color-border)]'}`}
+                          />
+                        </div>
+                        <div className="col-span-4">
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={m.amount}
+                              onChange={(e) => updateMilestone(idx, 'amount', e.target.value)}
+                              placeholder="USD"
+                              className={`w-full pl-6 pr-2 py-1.5 text-sm rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 ${errors[`milestone_${idx}_amount`] ? 'border-red-400' : 'border-[var(--color-border)]'}`}
+                            />
+                          </div>
+                          {form.exchangeRate && m.amount && (
+                            <p className="text-[9px] mt-0.5 truncate" style={{ color: 'var(--color-text-muted)' }}>
+                              ≈ {formatMXN(convertToMXN(m.amount, form.exchangeRate))}
+                            </p>
+                          )}
+                        </div>
+                        <div className="col-span-3">
+                          <input
+                            type="date"
+                            value={m.estimatedDate}
+                            onChange={(e) => updateMilestone(idx, 'estimatedDate', e.target.value)}
+                            className="w-full px-2 py-1.5 text-xs rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+                            style={{ borderColor: 'var(--color-border)' }}
+                            title="Fecha estimada"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Resumen de hitos */}
+                {form.milestonesTemplate.length > 0 && (
+                  <div className="p-3 rounded-lg border-2" style={{
+                    borderColor: milestonesMatch ? 'var(--color-success)' : (salePriceNum > 0 ? 'var(--color-warning)' : 'var(--color-border-light)'),
+                    background: milestonesMatch ? 'var(--color-success-bg)' : (salePriceNum > 0 ? 'var(--color-warning-bg)' : 'var(--color-surface)')
+                  }}>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Enganche</p>
+                        <p className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>{formatUSD(downPaymentNum)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Σ Hitos</p>
+                        <p className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>{formatUSD(milestonesTotal)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Total</p>
+                        <p className="text-xs font-bold" style={{ color: milestonesMatch ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                          {formatUSD(milestonesPlusDown)}
+                        </p>
+                      </div>
+                    </div>
+                    {salePriceNum > 0 && !milestonesMatch && (
+                      <p className="text-[11px] text-center mt-2 font-medium" style={{ color: 'var(--color-warning)' }}>
+                        {milestonesDelta > 0
+                          ? `⚠ Faltan ${formatUSD(milestonesDelta)} para igualar el precio de venta`
+                          : `⚠ Excede ${formatUSD(Math.abs(milestonesDelta))} sobre el precio de venta`}
+                      </p>
+                    )}
+                    {milestonesMatch && (
+                      <p className="text-[11px] text-center mt-2 font-medium" style={{ color: 'var(--color-success)' }}>
+                        ✓ Los hitos suman exactamente el precio de venta
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
-              <div>
-                <label className={labelClass}>Total de pagos</label>
-                <input type="number" name="totalPayments" value={form.totalPayments} onChange={handleChange} placeholder="Ej: 36" className={inputClass('totalPayments')} />
-              </div>
-            </div>
+            )}
 
             {/* Fechas */}
             {sectionLabel('Fechas Clave')}

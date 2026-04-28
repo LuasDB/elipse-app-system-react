@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+
 import {
   Building2, FileText, DollarSign, Users,
   AlertTriangle, Clock, CheckCircle, TrendingUp,
-  ChevronRight, Calendar, Wallet
+  ChevronRight, Calendar, Wallet, Hammer
 } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import paymentsService from '@/services/paymentsService'
@@ -124,6 +125,25 @@ const Dashboard = () => {
       color: 'var(--color-info)',
       bg: 'var(--color-info-bg)'
     },
+    {
+      label: 'Hitos por cobrar',
+      value: alerts?.milestonesCompletedUnpaid?.count || 0,
+      sub: formatPrice(alerts?.milestonesCompletedUnpaid?.total),
+      icon: CheckCircle,
+      color: 'var(--color-accent)',
+      bg: 'var(--color-accent-muted)',
+      tooltip: 'Hitos completados pero aún sin cobrar'
+    },
+    {
+      label: 'Hitos atrasados',
+      value: alerts?.milestonesOverdue?.count || 0,
+      sub: 'fecha estimada vencida',
+      icon: Hammer,
+      color: 'var(--color-danger)',
+      bg: 'var(--color-danger-bg)',
+      urgent: (alerts?.milestonesOverdue?.count || 0) > 0,
+      tooltip: 'Hitos cuya fecha estimada ya pasó y no se han completado'
+    },
   ]
 
   return (
@@ -131,10 +151,11 @@ const Dashboard = () => {
       <PageHeader title="Dashboard" subtitle="Panel de control general" />
 
       {/* Alert cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
         {cards.map((c, i) => (
           <div
             key={i}
+            title={c.tooltip || c.label}
             className={`p-5 rounded-xl border bg-white transition-all ${c.urgent ? 'ring-2 ring-red-200' : ''}`}
             style={{ borderColor: c.urgent ? 'var(--color-danger)' : 'var(--color-border-light)', boxShadow: 'var(--shadow-sm)' }}
           >

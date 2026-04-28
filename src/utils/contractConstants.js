@@ -13,3 +13,33 @@ export const PAYMENT_SCHEMES = [
   { value: 'credito_directo', label: 'Crédito Directo' },
   { value: 'otro', label: 'Otro' },
 ]
+
+// Modalidad del contrato (línea de seguimiento)
+export const CONTRACT_MODALITIES = [
+  {
+    value: 'monthly',
+    label: 'Por mensualidades',
+    shortLabel: 'Mensualidades',
+    description: 'Enganche + N mensualidades a tiempo',
+    color: '#2563EB',
+    bg: '#2563EB1A'
+  },
+  {
+    value: 'milestones',
+    label: 'Por avance de obra',
+    shortLabel: 'Avance de obra',
+    description: 'Pagos atados a hitos de construcción',
+    color: '#C8A45A',
+    bg: '#C8A45A1A'
+  },
+]
+
+export const getModalityConfig = (modality) => {
+  return CONTRACT_MODALITIES.find(m => m.value === modality) || CONTRACT_MODALITIES[0]
+}
+
+// Estados de hitos (Línea 2)
+export const MILESTONE_STATUS = [
+  { value: 'pendiente', label: 'Pendiente', color: '#6B7280', bg: '#6B72801A' },
+  { value: 'completado', label: 'Completado', color: '#059669', bg: '#0596691A' },
+]

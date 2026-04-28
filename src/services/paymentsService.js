@@ -60,7 +60,16 @@ const paymentsService = {
 async removeVoucher(paymentId, fileName) {
   const { data } = await apiServices.delete(`/payments/${paymentId}/vouchers/${fileName}`)
   return data
-}
+},
+async completeMilestone(paymentId, data = {}) {
+    const { data: response } = await apiServices.patch(`/payments/${paymentId}/milestone/complete`, data)
+    return response
+  },
+
+  async uncompleteMilestone(paymentId) {
+    const { data: response } = await apiServices.patch(`/payments/${paymentId}/milestone/uncomplete`, {})
+    return response
+  },
 }
 
 export default paymentsService

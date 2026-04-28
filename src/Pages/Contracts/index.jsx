@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Plus, Search, FileText, MoreHorizontal, Pencil, Trash2,
-  ChevronDown, Eye, Building2, User, DollarSign, Calendar
+  ChevronDown, Eye, Building2, User, DollarSign,
 } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import StatusBadge from '@/components/common/StatusBadge'
@@ -10,9 +10,10 @@ import ContractDetail from './ContractDetail'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import Toast from '@/components/common/Toast'
 import contractsService from '@/services/contractsService'
-import { CONTRACT_STATUS } from '@/utils/contractConstants'
+import { CONTRACT_STATUS, CONTRACT_MODALITIES, getModalityConfig } from '@/utils/contractConstants'
 import { getStatusConfig } from '@/utils/projectConstants'
 import DualPrice from '@/components/common/DualPrice'
+import { Calendar, Hammer } from 'lucide-react'
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
 const ContractsPage = () => {
@@ -20,6 +21,7 @@ const ContractsPage = () => {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [activeTab, setActiveTab] = useState('monthly') // 'monthly' | 'milestones'
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingContract, setEditingContract] = useState(null)
@@ -44,7 +46,7 @@ const ContractsPage = () => {
 
   useEffect(() => { fetchContracts() }, [fetchContracts])
 
-  const filtered = contracts.filter(c => {
+  const filteredContracts = contracts.filter(c => {
     if (statusFilter && c.status !== statusFilter) return false
     if (search) {
       const q = search.toLowerCase()
@@ -56,12 +58,33 @@ const ContractsPage = () => {
     return true
   })
 
+  // Filtrado por modalidad (tab) además de los filtros existentes
+  const contractsByTab = (filteredContracts || contracts).filter(c => {
+    const m = c.modality || 'monthly'
+    return m === activeTab
+  })
+
+  // Conteos para mostrar en las pestañas
+  const monthlyCount = (filteredContracts || contracts).filter(c => (c.modality || 'monthly') === 'monthly').length
+  const milestonesCount = (filteredContracts || contracts).filter(c => c.modality === 'milestones').length
+
   const handleSubmit = async (formData) => {
     setFormLoading(true)
     try {
       if (editingContract) {
-        await contractsService.update(editingContract._id, formData)
-        setToast({ message: 'Contrato actualizado', type: 'success' })
+        const res = await contractsService.update(editing._id, payload)
+
+      // Si cambió modalidad o hitos, regenerar calendario de pagos
+      if (res?.data?.shouldRegeneratePayments) {
+        try {
+          await contractsService.regenerateSchedule(editing._id)
+          showToast('Contrato actualizado y calendario de pagos regenerado', 'success')
+        } catch (regenErr) {
+          showToast('Contrato actualizado, pero falló la regeneración de pagos', 'warning')
+        }
+      } else {
+        showToast('Contrato actualizado correctamente', 'success')
+      }
       } else {
         await contractsService.create(formData)
         setToast({ message: 'Contrato creado', type: 'success' })
@@ -151,6 +174,37 @@ const ContractsPage = () => {
       {/* Table */}
       <div className="rounded-xl border bg-white overflow-hidden" style={{ borderColor: 'var(--color-border-light)', boxShadow: 'var(--shadow-sm)' }}>
         <div className="overflow-x-auto">
+          {/* Tabs de modalidad */}
+      <div className="flex items-center gap-1 mb-4 border-b" style={{ borderColor: 'var(--color-border-light)' }}>
+        {CONTRACT_MODALITIES.map(m => {
+          const isActive = activeTab === m.value
+          const count = m.value === 'monthly' ? monthlyCount : milestonesCount
+          const Icon = m.value === 'milestones' ? Hammer : Calendar
+          return (
+            <button
+              key={m.value}
+              onClick={() => setActiveTab(m.value)}
+              className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${isActive ? '' : 'hover:bg-gray-50'}`}
+              style={{
+                color: isActive ? m.color : 'var(--color-text-muted)'
+              }}
+            >
+              <Icon size={14} />
+              <span>{m.label}</span>
+              <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                style={{
+                  background: isActive ? m.bg : 'var(--color-surface)',
+                  color: isActive ? m.color : 'var(--color-text-muted)'
+                }}>
+                {count}
+              </span>
+              {isActive && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: m.color }} />
+              )}
+            </button>
+          )
+        })}
+      </div>
           <table className="w-full">
             <thead>
               <tr style={{ background: 'var(--color-surface-sunken)' }}>
@@ -169,7 +223,7 @@ const ContractsPage = () => {
                     </div>
                   </td>
                 </tr>
-              ) : filtered.length === 0 ? (
+              ) : filteredContracts.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-20">
                     <FileText size={40} className="mx-auto mb-3" style={{ color: 'var(--color-border)' }} />
@@ -178,7 +232,7 @@ const ContractsPage = () => {
                     </p>
                   </td>
                 </tr>
-              ) : filtered.map((contract, idx) => {
+              ) : contractsByTab.map((contract, idx) => {
                 const cStatus = getStatusConfig(CONTRACT_STATUS, contract.status)
                 return (
                   <tr key={contract._id || idx} className="group hover:bg-[var(--color-surface)] transition-colors cursor-pointer" style={{ borderBottom: '1px solid var(--color-border-light)' }} onClick={() => openDetail(contract)}>
@@ -238,9 +292,9 @@ const ContractsPage = () => {
             </tbody>
           </table>
         </div>
-        {filtered.length > 0 && (
+        {filteredContracts.length > 0 && (
           <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: '1px solid var(--color-border-light)', background: 'var(--color-surface-sunken)' }}>
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Mostrando <strong>{filtered.length}</strong> de <strong>{contracts.length}</strong> contratos</p>
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Mostrando <strong>{filteredContracts.length}</strong> de <strong>{contracts.length}</strong> contratos</p>
           </div>
         )}
       </div>
