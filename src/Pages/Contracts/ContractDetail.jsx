@@ -2,23 +2,22 @@ import { useState, useEffect } from 'react'
 import {
   X, Building2, Home, User, DollarSign, Calendar, FileText,
   Phone, Mail, MapPin, CheckCircle, Clock, AlertTriangle,
-  ExternalLink, File, Paperclip, ChevronDown, ChevronUp
+  ExternalLink, File, Paperclip, ChevronDown, ChevronUp,
+  Hammer, Calendar as CalendarIcon, CheckCircle2, Lock
 } from 'lucide-react'
 import StatusBadge from '@/components/common/StatusBadge'
-import { CONTRACT_STATUS, PAYMENT_SCHEMES } from '@/utils/contractConstants'
+import { CONTRACT_STATUS, PAYMENT_SCHEMES, CONTRACT_MODALITIES, getModalityConfig } from '@/utils/contractConstants'
 import { PAYMENT_STATUS } from '@/utils/paymentConstants'
 import { getStatusConfig } from '@/utils/projectConstants'
 import paymentsService from '@/services/paymentsService'
 import { API_BASE_URL } from '@/api/axiosConfig'
 import { formatUSD, formatMXN, convertToMXN, formatExchangeRate, formatExchangeRateDate } from '@/utils/currency'
 import DualPrice from '@/components/common/DualPrice'
-
-import { CONTRACT_MODALITIES, getModalityConfig } from '@/utils/contractConstants'
 import MilestoneTimeline from '@/components/common/MilestoneTimeline'
 import CompleteMilestoneModal from '@/components/common/CompleteMilestoneModal'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import Toast from '@/components/common/Toast'
-import { Hammer, Calendar as CalendarIcon, CheckCircle2, Lock } from 'lucide-react'
+import RegisterPaymentModal from '@/Pages/Payments/RegisterPaymentModal'
 
 const formatPrice = (n) => formatUSD(n)
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'
@@ -72,52 +71,59 @@ const ContractDetail = ({ contract, onClose }) => {
   const [loadingPayments, setLoadingPayments] = useState(true)
   const [expandedPayment, setExpandedPayment] = useState(null)
   // Estados para gestión de hitos (Línea 2)
-  const [completingMilestone, setCompletingMilestone] = useState(null)   // payment a completar
+  const [completingMilestone, setCompletingMilestone] = useState(null)
   const [completingLoading, setCompletingLoading] = useState(false)
-  const [uncompleteMilestone, setUncompleteMilestone] = useState(null)   // payment a revertir
+  const [uncompleteMilestone, setUncompleteMilestone] = useState(null)
+
+  const [editingCommitment, setEditingCommitment] = useState(null)
+  const [editingCommitmentLoading, setEditingCommitmentLoading] = useState(false)
   const [toast, setToast] = useState(null)
+  // Estados para registro de pagos
+  const [registeringPayment, setRegisteringPayment] = useState(null)
+  const [registerLoading, setRegisterLoading] = useState(false)
 
   const isMilestonesContract = contract?.modality === 'milestones'
   const milestonePayments = (payments || []).filter(p => p.isMilestone)
                                             .sort((a, b) => (a.milestoneOrder || 0) - (b.milestoneOrder || 0))
 
+  const loadPayments = async () => {
+    if (!contract) return
+    try {
+      setLoadingPayments(true)
+      const [paymentsRes, summaryRes] = await Promise.all([
+        paymentsService.getByContract(contract._id),
+        paymentsService.getSummary(contract._id)
+      ])
+      setPayments(paymentsRes.data || [])
+      setSummary(summaryRes.data || null)
+    } catch (err) {
+      console.error('Error al cargar pagos:', err)
+    } finally {
+      setLoadingPayments(false)
+    }
+  }
+
+  useEffect(() => {
+    if (contract?._id) loadPayments()
+  }, [contract?._id])
+
   if (!contract) return null
 
   const cStatus = getStatusConfig(CONTRACT_STATUS, contract.status)
   const scheme = PAYMENT_SCHEMES.find(p => p.value === contract.paymentScheme)
-
-  const loadPayments = async () => {
-      try {
-        setLoadingPayments(true)
-        const [paymentsRes, summaryRes] = await Promise.all([
-          paymentsService.getByContract(contract._id),
-          paymentsService.getSummary(contract._id)
-        ])
-        setPayments(paymentsRes.data || [])
-        setSummary(summaryRes.data || null)
-      } catch (err) {
-        console.error('Error al cargar pagos:', err)
-      } finally {
-        setLoadingPayments(false)
-      }
-    }
-  useEffect(() => {
-    
-    loadPayments()
-  }, [contract._id])
+  const modalityCfg = getModalityConfig(contract.modality || 'monthly')
 
   const togglePayment = (id) => {
     setExpandedPayment(expandedPayment === id ? null : id)
   }
 
-  const handleCompleteMilestone = async ({ notes, completedAt }) => {
+  const handleCompleteMilestone = async ({ commitmentDate, notes }) => {
     if (!completingMilestone) return
     setCompletingLoading(true)
     try {
-      await paymentsService.completeMilestone(completingMilestone._id, { notes, completedAt })
+      await paymentsService.completeMilestone(completingMilestone._id, { commitmentDate, notes })
       setToast({ message: 'Hito marcado como completado', type: 'success' })
       setCompletingMilestone(null)
-      // Refrescar pagos
       await loadPayments()
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Error al completar el hito'
@@ -140,17 +146,71 @@ const ContractDetail = ({ contract, onClose }) => {
     }
   }
 
+  const handleEditCommitment = async ({ commitmentDate, notes }) => {
+    if (!editingCommitment) return
+    setEditingCommitmentLoading(true)
+    try {
+      await paymentsService.updateMilestoneCommitment(editingCommitment._id, { commitmentDate, notes })
+      setToast({ message: 'Fecha compromiso actualizada', type: 'success' })
+      setEditingCommitment(null)
+      await loadPayments()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al actualizar'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setEditingCommitmentLoading(false)
+    }
+  }
+
+  const handleRegisterPayment = async (formData) => {
+    if (!registeringPayment) return
+    setRegisterLoading(true)
+    try {
+      await paymentsService.registerPayment(registeringPayment._id, {
+        amount: Number(formData.amount),
+        paymentMethod: formData.paymentMethod,
+        reference: formData.reference,
+        notes: formData.notes,
+        exchangeRate: Number(formData.exchangeRate),
+        exchangeRateDate: formData.exchangeRateDate
+      })
+
+      if (formData.files && formData.files.length > 0) {
+        const fd = new FormData()
+        formData.files.forEach(f => fd.append('vouchers', f))
+        await paymentsService.uploadVouchers(registeringPayment._id, fd)
+      }
+
+      setToast({ message: 'Pago registrado correctamente', type: 'success' })
+      setRegisteringPayment(null)
+      await loadPayments()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al registrar el pago'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setRegisterLoading(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-overlayIn" style={{ background: 'rgba(15,36,56,0.45)', backdropFilter: 'blur(4px)' }}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl animate-scaleIn overflow-hidden max-h-[94vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, var(--color-primary-dark), var(--color-primary))' }}>
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>
                 {contract.contractNumber || 'Contrato'}
               </h2>
               <StatusBadge label={cStatus.label} color="#fff" bg={`${cStatus.color}44`} size="xs" />
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-white"
+                style={{ background: `${modalityCfg.color}88` }}
+                title={modalityCfg.description}
+              >
+                {contract.modality === 'milestones' ? <Hammer size={10} /> : <CalendarIcon size={10} />}
+                {modalityCfg.shortLabel}
+              </span>
             </div>
             <p className="text-xs text-slate-300 mt-0.5">Detalle completo del contrato</p>
           </div>
@@ -223,14 +283,18 @@ const ContractDetail = ({ contract, onClose }) => {
                   <DualPrice usd={contract.downPayment} rate={contract.exchangeRate} size="md" />
                 </div>
               </div>
-              <div className="flex items-start gap-3 py-2">
-                <DollarSign size={15} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
-                <div>
-                  <p className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Mensualidad</p>
-                  <DualPrice usd={contract.monthlyPayment} rate={contract.exchangeRate} size="md" />
-                </div>
-              </div>
-              <InfoRow icon={FileText} label="Total de pagos" value={contract.totalPayments || '—'} />
+              {!isMilestonesContract && (
+                <>
+                  <div className="flex items-start gap-3 py-2">
+                    <DollarSign size={15} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Mensualidad</p>
+                      <DualPrice usd={contract.monthlyPayment} rate={contract.exchangeRate} size="md" />
+                    </div>
+                  </div>
+                  <InfoRow icon={FileText} label="Total de pagos" value={contract.totalPayments || '—'} />
+                </>
+              )}
               <InfoRow icon={FileText} label="Esquema de pago" value={scheme?.label} />
             </div>
           </div>
@@ -247,26 +311,25 @@ const ContractDetail = ({ contract, onClose }) => {
             {contract.notary && <InfoRow icon={FileText} label="Notaría" value={contract.notary} />}
           </div>
 
-          {/* ═══════════════════════════════════════ */}
           {/* SECCIÓN DE PAGOS */}
-          {/* ═══════════════════════════════════════ */}
           <div className="p-4 rounded-xl border" style={{ borderColor: 'var(--color-border-light)', background: 'var(--color-surface)' }}>
             <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: 'var(--color-accent)' }}>
               Seguimiento de Pagos
             </p>
 
             {/* Timeline de hitos (solo Línea 2) */}
-              {isMilestonesContract && milestonePayments.length > 0 && (
-                <div className="mb-6">
-                  <MilestoneTimeline
-                    milestones={milestonePayments}
-                    exchangeRate={contract.exchangeRate}
-                    canManage={true}
-                    onComplete={(m) => setCompletingMilestone(m)}
-                    onUncomplete={(m) => setUncompleteMilestone(m)}
-                  />
-                </div>
-              )}
+            {isMilestonesContract && milestonePayments.length > 0 && (
+              <div className="mb-6">
+                <MilestoneTimeline
+                  milestones={milestonePayments}
+                  exchangeRate={contract.exchangeRate}
+                  canManage={true}
+                  onComplete={(m) => setCompletingMilestone(m)}
+                  onUncomplete={(m) => setUncompleteMilestone(m)}
+                  onEditCommitment={(m) => setEditingCommitment(m)}
+                />
+              </div>
+            )}
 
             {loadingPayments ? (
               <div className="flex items-center justify-center py-8">
@@ -321,13 +384,14 @@ const ContractDetail = ({ contract, onClose }) => {
                     const isPaid = p.status === 'pagado'
                     const hasVouchers = p.vouchers && p.vouchers.length > 0
                     const isExpanded = expandedPayment === p._id
+                    
 
                     return (
                       <div key={p._id} className={`rounded-lg border overflow-hidden transition-all ${isOverdue ? 'border-red-200 bg-red-50/30' : 'border-[var(--color-border-light)] bg-white'}`}>
                         {/* Row */}
-                        <button
+                        <div
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-surface)] transition-colors cursor-pointer"
                           onClick={() => togglePayment(p._id)}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[var(--color-surface)] transition-colors"
                         >
                           {/* Number */}
                           <div
@@ -343,6 +407,9 @@ const ContractDetail = ({ contract, onClose }) => {
                           {/* Info */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
+                              {p.isMilestone && (
+                                <Hammer size={11} style={{ color: 'var(--color-accent)' }} />
+                              )}
                               <span className="text-sm font-medium truncate" style={{ color: 'var(--color-text)' }}>{p.concept}</span>
                               {hasVouchers && (
                                 <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold" style={{ background: 'var(--color-info-bg)', color: 'var(--color-info)' }}>
@@ -368,23 +435,23 @@ const ContractDetail = ({ contract, onClose }) => {
 
                           {/* Status */}
                           <StatusBadge label={pStatus.label} color={pStatus.color} bg={pStatus.bg} size="xs" />
-                            {contract.modality && (
-                <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
-                  style={{
-                    background: getModalityConfig(contract.modality).bg,
-                    color: getModalityConfig(contract.modality).color
-                  }}
-                >
-                  {contract.modality === 'milestones' ? <Hammer size={10} /> : <CalendarIcon size={10} />}
-                  {getModalityConfig(contract.modality).shortLabel}
-                </span>
-              )}
+
+                          {/* Botón Registrar (solo si no está pagado) */}
+                          {!isPaid && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setRegisteringPayment(p) }}
+                              className="px-2.5 py-1 text-[11px] font-medium rounded-md text-white transition-colors hover:opacity-90 flex-shrink-0"
+                              style={{ background: 'var(--color-primary)' }}
+                            >
+                              Registrar
+                            </button>
+                          )}
+
                           {/* Chevron */}
                           <div className="flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>
                             {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                           </div>
-                        </button>
+                        </div>
 
                         {/* Expanded detail */}
                         {isExpanded && (
@@ -537,6 +604,16 @@ const ContractDetail = ({ contract, onClose }) => {
           <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-gray-50 transition-colors">Cerrar</button>
         </div>
       </div>
+
+      {/* Modal: registrar pago */}
+      <RegisterPaymentModal
+        isOpen={!!registeringPayment}
+        onClose={() => setRegisteringPayment(null)}
+        onSubmit={handleRegisterPayment}
+        payment={registeringPayment}
+        loading={registerLoading}
+      />
+
       {/* Modal: completar hito */}
       <CompleteMilestoneModal
         isOpen={!!completingMilestone}
@@ -544,6 +621,16 @@ const ContractDetail = ({ contract, onClose }) => {
         onConfirm={handleCompleteMilestone}
         milestone={completingMilestone}
         loading={completingLoading}
+      />
+
+      {/* Modal: editar fecha compromiso */}
+      <CompleteMilestoneModal
+        isOpen={!!editingCommitment}
+        onClose={() => setEditingCommitment(null)}
+        onConfirm={handleEditCommitment}
+        milestone={editingCommitment}
+        loading={editingCommitmentLoading}
+        mode="editCommitment"
       />
 
       {/* Confirm: revertir hito */}

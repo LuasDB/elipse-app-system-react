@@ -15,6 +15,16 @@ const paymentsService = {
     return data
   },
 
+  async completeMilestone(paymentId, data = {}) {
+    const { data: response } = await apiServices.patch(`/payments/${paymentId}/milestone/complete`, data)
+    return response
+  },
+
+  async uncompleteMilestone(paymentId) {
+    const { data: response } = await apiServices.patch(`/payments/${paymentId}/milestone/uncomplete`, {})
+    return response
+  },
+
   async getByContract(contractId) {
     const { data } = await apiServices.get(`/payments/contract/${contractId}`)
     return data
@@ -45,29 +55,29 @@ const paymentsService = {
     return data
   },
 
-  async uploadVouchers(paymentId, files) {
-  const formData = new FormData()
-  files.forEach(file => formData.append('vouchers', file))
+  async uploadVouchers(paymentId, filesOrFormData) {
+    let formData
+    if (filesOrFormData instanceof FormData) {
+      formData = filesOrFormData
+    } else {
+      formData = new FormData()
+      filesOrFormData.forEach(file => formData.append('vouchers', file))
+    }
 
-  const { data } = await apiServices.post(
-    `/payments/${paymentId}/vouchers`,
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } }
-  )
-  return data
-},
-
-async removeVoucher(paymentId, fileName) {
-  const { data } = await apiServices.delete(`/payments/${paymentId}/vouchers/${fileName}`)
-  return data
-},
-async completeMilestone(paymentId, data = {}) {
-    const { data: response } = await apiServices.patch(`/payments/${paymentId}/milestone/complete`, data)
-    return response
+    const { data } = await apiServices.post(
+      `/payments/${paymentId}/vouchers`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    )
+    return data
   },
 
-  async uncompleteMilestone(paymentId) {
-    const { data: response } = await apiServices.patch(`/payments/${paymentId}/milestone/uncomplete`, {})
+  async removeVoucher(paymentId, fileName) {
+    const { data } = await apiServices.delete(`/payments/${paymentId}/vouchers/${fileName}`)
+    return data
+  },
+  async updateMilestoneCommitment(paymentId, data = {}) {
+    const { data: response } = await apiServices.patch(`/payments/${paymentId}/milestone/commitment`, data)
     return response
   },
 }

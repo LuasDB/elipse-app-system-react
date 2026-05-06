@@ -27,6 +27,12 @@ const contractsService = {
     return data
   },
 
+  async regenerateSchedule(contractId) {
+    // Re-genera el calendario de pagos del contrato (al cambiar modalidad o hitos)
+    const { data } = await apiServices.post(`/payments/generate/${contractId}`)
+    return data
+  },
+
   async delete(id) {
     const { data } = await apiServices.delete(`/contracts/${id}`)
     return data
@@ -47,12 +53,7 @@ const contractsService = {
   async removeFile(contractId, fileName) {
     const { data } = await apiServices.delete(`/contracts/${contractId}/files/${fileName}`)
     return data
-  },
-  async regenerateSchedule(contractId) {
-    // Re-genera el calendario de pagos del contrato (al cambiar modalidad o hitos)
-    const { data } = await apiServices.post(`/payments/generate/${contractId}`)
-    return data
-  },
+  }
 }
 
 export default contractsService

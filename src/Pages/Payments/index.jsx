@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Plus, Search, DollarSign, ChevronDown, Calendar,
-  AlertTriangle, CheckCircle, Clock, Building2, User,Paperclip
+  AlertTriangle, CheckCircle, Clock, Building2, User, Paperclip, Hammer, Lock, CheckCircle2
 } from 'lucide-react'
-import { Hammer, Lock, CheckCircle2 } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import StatusBadge from '@/components/common/StatusBadge'
 import RegisterPaymentModal from './RegisterPaymentModal'
@@ -222,13 +221,12 @@ const PaymentsPage = () => {
                     <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
                       {payments.length === 0 ? 'No hay pagos programados' : 'Sin resultados'}
                     </p>
-                  </td>
-                  
-                  
-                  </tr>
+                  </td></tr>
                 ) : filtered.map((p, idx) => {
                   const pStatus = getStatusConfig(PAYMENT_STATUS, p.status)
                   const isOverdue = p.status === 'vencido'
+                  const isPaid = p.status === 'pagado'
+                  const contractRate = selectedContractData?.exchangeRate
                   return (
                     <tr key={p._id || idx} className={`group transition-colors ${isOverdue ? 'bg-red-50/40' : 'hover:bg-[var(--color-surface)]'}`} style={{ borderBottom: '1px solid var(--color-border-light)' }}>
                       <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>{p.paymentNumber}</td>
@@ -237,7 +235,7 @@ const PaymentsPage = () => {
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
                               {p.isMilestone && (
-                                <Hammer size={11} style={{ color: 'var(--color-accent)' }} title="Hito de obra" />
+                                <Hammer size={11} style={{ color: 'var(--color-accent)' }} />
                               )}
                               <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>{p.concept}</span>
                             </div>
@@ -264,35 +262,27 @@ const PaymentsPage = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <DualPrice usd={p.expectedAmount} rate={p.contractExchangeRate} size="sm" color="var(--color-text-secondary)" />
+                        <DualPrice usd={p.expectedAmount} rate={contractRate} size="sm" />
                       </td>
                       <td className="px-4 py-3">
-                        <DualPrice usd={p.paidAmount} rate={p.lastExchangeRate || p.contractExchangeRate} size="sm" color="var(--color-success)" />
+                        <DualPrice usd={p.paidAmount} rate={contractRate} size="sm" color="var(--color-success)" />
                       </td>
                       <td className="px-4 py-3">
-                        <DualPrice usd={p.balance} rate={p.contractExchangeRate} size="sm" color={p.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)'} />
+                        <DualPrice usd={p.balance} rate={contractRate} size="sm" color={p.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)'} />
                       </td>
                       <td className="px-4 py-3"><StatusBadge label={pStatus.label} color={pStatus.color} bg={pStatus.bg} size="xs" /></td>
                       <td className="px-4 py-3">
-                        {p.status !== 'pagado' && (
-                          p.isMilestone && p.milestoneStatus !== 'completado' ? (
-                            <button
-                              disabled
-                              title="Hito pendiente de completar"
-                              className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md cursor-not-allowed"
-                              style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}
-                            >
-                              <Lock size={10} /> Bloqueado
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleOpenRegister(p)}
-                              className="px-2.5 py-1 text-[11px] font-medium rounded-md text-white transition-colors hover:opacity-90"
-                              style={{ background: 'var(--color-primary)' }}
-                            >
-                              Registrar
-                            </button>
-                          )
+                        {!isPaid && (
+                          <button
+                            onClick={() => { setSelectedPayment(p); setRegisterOpen(true) }}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg text-white transition-all hover:shadow-sm"
+                            style={{ background: 'var(--color-success)' }}
+                          >
+                            Registrar pago
+                          </button>
+                        )}
+                        {isPaid && (
+                          <span className="text-xs font-medium" style={{ color: 'var(--color-success)' }}>✓ Pagado</span>
                         )}
                       </td>
                     </tr>

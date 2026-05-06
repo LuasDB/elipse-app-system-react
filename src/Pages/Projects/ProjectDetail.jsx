@@ -11,7 +11,6 @@ import UnitFormModal from './UnitFormModal'
 import projectsService from '@/services/projectsService'
 import unitsService from '@/services/unitsService'
 import { PROJECT_STATUS, UNIT_STATUS, UNIT_TYPES, getStatusConfig } from '@/utils/projectConstants'
-
 import { formatUSD } from '@/utils/currency'
 
 const formatPrice = (n) => formatUSD(n)

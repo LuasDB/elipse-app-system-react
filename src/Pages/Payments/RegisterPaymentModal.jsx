@@ -22,7 +22,6 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading }) =
 
   useEffect(() => {
     if (payment) {
-      // Pre-cargar TC: usa el último TC del pago si existe, si no el del contrato
       const defaultRate = payment.lastExchangeRate || payment.contractExchangeRate || ''
       setForm({
         amount: payment.balance || '',
@@ -91,7 +90,7 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading }) =
 
         <div className="flex-1 overflow-y-auto">
           {/* Info card */}
-           <div className="px-6 pt-5">
+          <div className="px-6 pt-5">
             <div className="grid grid-cols-3 gap-3 p-3 rounded-lg" style={{ background: 'var(--color-surface)' }}>
               <div className="text-center">
                 <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Esperado USD</p>
@@ -108,7 +107,7 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading }) =
             </div>
           </div>
 
-           <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
             {/* Tipo de cambio del día */}
             <div className="p-3 rounded-lg border-2" style={{ borderColor: 'var(--color-accent)', background: 'var(--color-accent-muted)' }}>
               <div className="flex items-center gap-2 mb-2">

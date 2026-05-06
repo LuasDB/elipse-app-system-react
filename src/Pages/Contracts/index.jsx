@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Plus, Search, FileText, MoreHorizontal, Pencil, Trash2,
-  ChevronDown, Eye, Building2, User, DollarSign,
+  ChevronDown, Eye, Building2, User, DollarSign, Calendar, Hammer
 } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import StatusBadge from '@/components/common/StatusBadge'
@@ -10,10 +10,10 @@ import ContractDetail from './ContractDetail'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import Toast from '@/components/common/Toast'
 import contractsService from '@/services/contractsService'
-import { CONTRACT_STATUS, CONTRACT_MODALITIES, getModalityConfig } from '@/utils/contractConstants'
+import { CONTRACT_STATUS, CONTRACT_MODALITIES } from '@/utils/contractConstants'
 import { getStatusConfig } from '@/utils/projectConstants'
 import DualPrice from '@/components/common/DualPrice'
-import { Calendar, Hammer } from 'lucide-react'
+
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
 const ContractsPage = () => {
@@ -21,7 +21,6 @@ const ContractsPage = () => {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [activeTab, setActiveTab] = useState('monthly') // 'monthly' | 'milestones'
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingContract, setEditingContract] = useState(null)
@@ -33,6 +32,7 @@ const ContractsPage = () => {
   const [selectedContract, setSelectedContract] = useState(null)
   const [toast, setToast] = useState(null)
   const [openMenuId, setOpenMenuId] = useState(null)
+  const [activeTab, setActiveTab] = useState('monthly')
 
   const fetchContracts = useCallback(async () => {
     try {
@@ -46,7 +46,7 @@ const ContractsPage = () => {
 
   useEffect(() => { fetchContracts() }, [fetchContracts])
 
-  const filteredContracts = contracts.filter(c => {
+  const filtered = contracts.filter(c => {
     if (statusFilter && c.status !== statusFilter) return false
     if (search) {
       const q = search.toLowerCase()
@@ -58,33 +58,26 @@ const ContractsPage = () => {
     return true
   })
 
-  // Filtrado por modalidad (tab) además de los filtros existentes
-  const contractsByTab = (filteredContracts || contracts).filter(c => {
-    const m = c.modality || 'monthly'
-    return m === activeTab
-  })
-
-  // Conteos para mostrar en las pestañas
-  const monthlyCount = (filteredContracts || contracts).filter(c => (c.modality || 'monthly') === 'monthly').length
-  const milestonesCount = (filteredContracts || contracts).filter(c => c.modality === 'milestones').length
+  // Filtrado por tab de modalidad
+  const contractsByTab = filtered.filter(c => (c.modality || 'monthly') === activeTab)
+  const monthlyCount = filtered.filter(c => (c.modality || 'monthly') === 'monthly').length
+  const milestonesCount = filtered.filter(c => c.modality === 'milestones').length
 
   const handleSubmit = async (formData) => {
     setFormLoading(true)
     try {
       if (editingContract) {
-        const res = await contractsService.update(editing._id, payload)
-
-      // Si cambió modalidad o hitos, regenerar calendario de pagos
-      if (res?.data?.shouldRegeneratePayments) {
-        try {
-          await contractsService.regenerateSchedule(editing._id)
-          showToast('Contrato actualizado y calendario de pagos regenerado', 'success')
-        } catch (regenErr) {
-          showToast('Contrato actualizado, pero falló la regeneración de pagos', 'warning')
+        const res = await contractsService.update(editingContract._id, formData)
+        if (res?.data?.shouldRegeneratePayments) {
+          try {
+            await contractsService.regenerateSchedule(editingContract._id)
+            setToast({ message: 'Contrato actualizado y calendario de pagos regenerado', type: 'success' })
+          } catch (regenErr) {
+            setToast({ message: 'Contrato actualizado, pero falló la regeneración de pagos', type: 'warning' })
+          }
+        } else {
+          setToast({ message: 'Contrato actualizado', type: 'success' })
         }
-      } else {
-        showToast('Contrato actualizado correctamente', 'success')
-      }
       } else {
         await contractsService.create(formData)
         setToast({ message: 'Contrato creado', type: 'success' })
@@ -171,10 +164,7 @@ const ContractsPage = () => {
         <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por contrato, comprador, unidad o proyecto..." className="w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/20 focus:border-[var(--color-accent)] transition-all" style={{ borderColor: 'var(--color-border)' }} />
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl border bg-white overflow-hidden" style={{ borderColor: 'var(--color-border-light)', boxShadow: 'var(--shadow-sm)' }}>
-        <div className="overflow-x-auto">
-          {/* Tabs de modalidad */}
+      {/* Tabs de modalidad */}
       <div className="flex items-center gap-1 mb-4 border-b" style={{ borderColor: 'var(--color-border-light)' }}>
         {CONTRACT_MODALITIES.map(m => {
           const isActive = activeTab === m.value
@@ -205,6 +195,10 @@ const ContractsPage = () => {
           )
         })}
       </div>
+
+      {/* Table */}
+      <div className="rounded-xl border bg-white overflow-hidden" style={{ borderColor: 'var(--color-border-light)', boxShadow: 'var(--shadow-sm)' }}>
+        <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr style={{ background: 'var(--color-surface-sunken)' }}>
@@ -223,12 +217,12 @@ const ContractsPage = () => {
                     </div>
                   </td>
                 </tr>
-              ) : filteredContracts.length === 0 ? (
+              ) : contractsByTab.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-20">
                     <FileText size={40} className="mx-auto mb-3" style={{ color: 'var(--color-border)' }} />
                     <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-                      {contracts.length === 0 ? 'Aún no hay contratos registrados' : 'No se encontraron resultados'}
+                      {contracts.length === 0 ? 'Aún no hay contratos registrados' : 'No hay contratos en esta modalidad'}
                     </p>
                   </td>
                 </tr>
@@ -292,9 +286,9 @@ const ContractsPage = () => {
             </tbody>
           </table>
         </div>
-        {filteredContracts.length > 0 && (
+        {contractsByTab.length > 0 && (
           <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: '1px solid var(--color-border-light)', background: 'var(--color-surface-sunken)' }}>
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Mostrando <strong>{filteredContracts.length}</strong> de <strong>{contracts.length}</strong> contratos</p>
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Mostrando <strong>{contractsByTab.length}</strong> de <strong>{contracts.length}</strong> contratos</p>
           </div>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { X, FileText, DollarSign, Calendar, UserPlus, Search, TrendingUp, Hammer, Plus, Trash2, AlertCircle } from 'lucide-react'
 import { CONTRACT_STATUS, PAYMENT_SCHEMES, CONTRACT_MODALITIES } from '@/utils/contractConstants'
 import { convertToMXN, formatMXN, formatUSD } from '@/utils/currency'
@@ -13,15 +13,15 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 const initialForm = {
   projectId: '', unitId: '', buyerId: '', sellerId: '',
   contractNumber: '', status: 'promesa', paymentScheme: 'enganche_mensualidades',
-  modality: 'monthly',                       // 'monthly' | 'milestones'
+  modality: 'monthly',
   salePrice: '', downPayment: '', monthlyPayment: '', totalPayments: '',
-  milestonesTemplate: [],                    // Array de hitos para Línea 2
+  milestonesTemplate: [],
   exchangeRate: '', exchangeRateDate: todayISO(),
   promiseDate: '', signDate: '', notaryDate: '', deliveryDate: '',
   notary: '', notes: ''
 }
 
-const emptyMilestone = () => ({ name: '', amount: '', estimatedDate: '' })
+const emptyMilestone = () => ({ name: '', amount: '' })
 
 const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => {
   const [form, setForm] = useState(initialForm)
@@ -49,7 +49,6 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
         ])
         setProjects(projRes.data || [])
         setBuyers(buyersRes.data || [])
-        // Incluir vendedores + gerentes
         const allUsers = sellersRes.data || []
         setSellers(allUsers)
       } catch (err) { console.error(err) }
@@ -63,7 +62,6 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
     const loadUnits = async () => {
       try {
         const res = await unitsService.getByProject(form.projectId)
-        // Solo mostrar disponibles y apartadas (o la unidad actual si estamos editando)
         const available = (res.data || []).filter(u =>
           u.status === 'disponible' || u.status === 'apartada' ||
           (isEditing && u._id === contract?.unitId)
@@ -87,8 +85,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
         monthlyPayment: contract.monthlyPayment || '', totalPayments: contract.totalPayments || '',
         milestonesTemplate: (contract.milestonesTemplate || []).map(m => ({
           name: m.name || '',
-          amount: m.amount || '',
-          estimatedDate: m.estimatedDate?.slice(0, 10) || ''
+          amount: m.amount || ''
         })),
         exchangeRate: contract.exchangeRate || '',
         exchangeRateDate: contract.exchangeRateDate?.slice(0, 10) || todayISO(),
@@ -114,7 +111,6 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
     if (!form.exchangeRate || Number(form.exchangeRate) <= 0) errs.exchangeRate = 'El tipo de cambio es requerido'
     if (!form.exchangeRateDate) errs.exchangeRateDate = 'La fecha del TC es requerida'
 
-    // Validación específica de Línea 2
     if (form.modality === 'milestones') {
       if (!form.milestonesTemplate || form.milestonesTemplate.length === 0) {
         errs.milestones = 'Debes agregar al menos un hito de obra'
@@ -140,7 +136,6 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
   const handleModalityChange = (modality) => {
     setForm(prev => {
       const next = { ...prev, modality }
-      // Si cambia a milestones y la lista está vacía, agregar uno por defecto
       if (modality === 'milestones' && (!prev.milestonesTemplate || prev.milestonesTemplate.length === 0)) {
         next.milestonesTemplate = [emptyMilestone()]
       }
@@ -182,21 +177,16 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
     e?.preventDefault?.()
     if (!validate()) return
 
-    // Construir payload limpio según modalidad
     const payload = { ...form }
 
     if (payload.modality === 'monthly') {
-      // Limpiar hitos si está en mensualidades
       payload.milestonesTemplate = []
     } else {
-      // Limpiar campos de mensualidades si está en hitos
       payload.monthlyPayment = 0
       payload.totalPayments = 0
-      // Normalizar hitos con order
       payload.milestonesTemplate = payload.milestonesTemplate.map((m, i) => ({
         name: m.name.trim(),
         amount: Number(m.amount),
-        estimatedDate: m.estimatedDate || null,
         order: i + 1
       }))
     }
@@ -218,7 +208,6 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
     } finally { setBuyerLoading(false) }
   }
 
-  // Filtered buyers
   const filteredBuyers = buyers.filter(b => {
     if (!buyerSearch) return true
     const q = buyerSearch.toLowerCase()
@@ -244,7 +233,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
               <h2 className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>
                 {isEditing ? 'Editar Contrato' : 'Nuevo Contrato'}
               </h2>
-              <p className="text-xs text-slate-300 mt-0.5">{isEditing ? 'Modifica los datos del contrato' : 'Vincula una unidad con un comprador'}</p>
+              <p className="text-xs text-slate-300 mt-0.5">{isEditing ? 'Modifica los datos del contrato' : 'Genera un nuevo contrato de venta'}</p>
             </div>
             <button onClick={onClose} className="text-slate-300 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"><X size={20} /></button>
           </div>
@@ -252,13 +241,13 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
           {/* Form */}
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
 
-            {/* Vinculación */}
-            {sectionLabel('Vinculación')}
+            {/* Proyecto y Unidad */}
+            {sectionLabel('Proyecto y Unidad')}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Proyecto <span className="text-red-400">*</span></label>
                 <select name="projectId" value={form.projectId} onChange={handleChange} className={selectClass('projectId')} disabled={isEditing}>
-                  <option value="">Seleccionar proyecto...</option>
+                  <option value="">Selecciona...</option>
                   {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
                 </select>
                 {errors.projectId && <p className="text-xs text-red-500 mt-1">{errors.projectId}</p>}
@@ -266,7 +255,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
               <div>
                 <label className={labelClass}>Unidad <span className="text-red-400">*</span></label>
                 <select name="unitId" value={form.unitId} onChange={handleChange} className={selectClass('unitId')} disabled={!form.projectId || isEditing}>
-                  <option value="">{form.projectId ? 'Seleccionar unidad...' : 'Selecciona un proyecto primero'}</option>
+                  <option value="">{form.projectId ? 'Selecciona...' : 'Primero un proyecto'}</option>
                   {units.map(u => <option key={u._id} value={u._id}>{u.identifier} — {u.unitType} {u.status !== 'disponible' ? `(${u.status})` : ''}</option>)}
                 </select>
                 {errors.unitId && <p className="text-xs text-red-500 mt-1">{errors.unitId}</p>}
@@ -281,7 +270,6 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                   <UserPlus size={13} /> Nuevo comprador
                 </button>
               </div>
-              {/* Buyer selector with search */}
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-[11px] text-gray-400" />
                 <input
@@ -291,7 +279,6 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                   placeholder="Buscar comprador por nombre, correo o teléfono..."
                   className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 ${errors.buyerId ? 'border-red-300' : 'border-[var(--color-border)]'}`}
                 />
-                {/* Dropdown */}
                 {buyerSearch && !form.buyerId && (
                   <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border rounded-lg shadow-lg max-h-40 overflow-y-auto" style={{ borderColor: 'var(--color-border)' }}>
                     {filteredBuyers.length === 0 ? (
@@ -435,6 +422,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                 )}
               </div>
             </div>
+
             {/* Mensualidades — solo Línea 1 */}
             {form.modality === 'monthly' && (
               <div className="grid grid-cols-2 gap-4">
@@ -498,7 +486,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                       </div>
 
                       <div className="grid grid-cols-12 gap-2">
-                        <div className="col-span-5">
+                        <div className="col-span-7">
                           <input
                             type="text"
                             value={m.name}
@@ -507,7 +495,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                             className={`w-full px-2.5 py-1.5 text-sm rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 ${errors[`milestone_${idx}_name`] ? 'border-red-400' : 'border-[var(--color-border)]'}`}
                           />
                         </div>
-                        <div className="col-span-4">
+                        <div className="col-span-5">
                           <div className="relative">
                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
                             <input
@@ -524,16 +512,6 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                               ≈ {formatMXN(convertToMXN(m.amount, form.exchangeRate))}
                             </p>
                           )}
-                        </div>
-                        <div className="col-span-3">
-                          <input
-                            type="date"
-                            value={m.estimatedDate}
-                            onChange={(e) => updateMilestone(idx, 'estimatedDate', e.target.value)}
-                            className="w-full px-2 py-1.5 text-xs rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
-                            style={{ borderColor: 'var(--color-border)' }}
-                            title="Fecha estimada"
-                          />
                         </div>
                       </div>
                     </div>

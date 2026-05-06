@@ -38,10 +38,10 @@ const Sidebar = () => {
               style={{ fontFamily: 'var(--font-display)', color: 'var(--color-accent)' }}
               className="text-xl font-semibold tracking-tight"
             >
-              InmoControl
+              S V I
             </h1>
             <p className="text-[11px] text-slate-400 mt-0.5 tracking-widest uppercase">
-              Gestión de ventas
+              Sistema de ventas inmobiliarias
             </p>
           </div>
         )}
