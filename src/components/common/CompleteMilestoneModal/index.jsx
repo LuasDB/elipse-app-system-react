@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 import { X, CheckCircle2, Calendar } from 'lucide-react'
 import { formatUSD } from '@/utils/currency'
 
@@ -8,7 +9,8 @@ const CompleteMilestoneModal = ({ isOpen, onClose, onConfirm, milestone, loading
   // mode: 'complete' (marcar nuevo) | 'editCommitment' (solo editar fecha)
   const [notes, setNotes] = useState('')
   const [commitmentDate, setCommitmentDate] = useState(todayISO())
-
+  useLockBodyScroll(isOpen)
+  
   useEffect(() => {
     if (isOpen && milestone) {
       if (mode === 'editCommitment') {

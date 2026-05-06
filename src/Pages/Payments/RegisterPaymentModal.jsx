@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 import { X, DollarSign, CreditCard, Upload, File, Trash2, ExternalLink, Paperclip, TrendingUp } from 'lucide-react'
 import { PAYMENT_METHODS } from '@/utils/paymentConstants'
 import { API_BASE_URL } from '@/api/axiosConfig'
@@ -19,7 +20,7 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading }) =
   })
   const [errors, setErrors] = useState({})
   const [selectedFiles, setSelectedFiles] = useState([])
-
+  useLockBodyScroll(isOpen)
   useEffect(() => {
     if (payment) {
       const defaultRate = payment.lastExchangeRate || payment.contractExchangeRate || ''
@@ -78,8 +79,9 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading }) =
   const serverBase = API_BASE_URL ? API_BASE_URL.replace('/api/v1', '') : ''
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 animate-overlayIn" style={{ background: 'rgba(15,36,56,0.5)', backdropFilter: 'blur(4px)' }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-scaleIn overflow-hidden max-h-[92vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex h-[90vh] items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-0 sm:px-4"
+    ><div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-scaleIn overflow-hidden max-h-[92vh] flex flex-col">
         <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, #059669, #047857)' }}>
           <div>
             <h2 className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>Registrar Pago</h2>

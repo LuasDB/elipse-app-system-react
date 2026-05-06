@@ -1,6 +1,8 @@
 import { AlertTriangle } from 'lucide-react'
+import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 
 const ConfirmDialog = ({ isOpen, onClose, onConfirm, title, message, loading }) => {
+  useLockBodyScroll(isOpen)
   if (!isOpen) return null
 
   return (

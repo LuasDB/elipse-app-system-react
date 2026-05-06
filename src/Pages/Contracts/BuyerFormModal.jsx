@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 import { X, User, Mail, Phone, FileText, MapPin } from 'lucide-react'
 
 const initialForm = {
@@ -10,6 +11,7 @@ const BuyerFormModal = ({ isOpen, onClose, onSubmit, buyer, loading }) => {
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
   const isEditing = !!buyer
+  useLockBodyScroll(isOpen)
 
   useEffect(() => {
     if (buyer) {
@@ -50,8 +52,9 @@ const BuyerFormModal = ({ isOpen, onClose, onSubmit, buyer, loading }) => {
   const labelClass = "block text-xs font-semibold uppercase tracking-wider mb-1.5 text-[var(--color-text-secondary)]"
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 animate-overlayIn" style={{ background: 'rgba(15,36,56,0.5)', backdropFilter: 'blur(4px)' }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-scaleIn overflow-hidden max-h-[90vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex h-[90vh] items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-0 sm:px-4"
+    ><div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-scaleIn overflow-hidden max-h-[90vh] flex flex-col">
         <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, #059669, #047857)' }}>
           <div>
             <h2 className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>

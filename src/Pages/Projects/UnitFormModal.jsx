@@ -65,8 +65,9 @@ const UnitFormModal = ({ isOpen, onClose, onSubmit, unit, loading }) => {
   const sectionLabel = (text) => <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--color-accent)' }}>{text}</p>
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-overlayIn" style={{ background: 'rgba(15,36,56,0.45)', backdropFilter: 'blur(4px)' }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl animate-scaleIn overflow-hidden max-h-[92vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex h-[90vh] items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-0 sm:px-4"
+    ><div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl animate-scaleIn overflow-hidden max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, var(--color-primary-dark), var(--color-primary))' }}>
           <div>

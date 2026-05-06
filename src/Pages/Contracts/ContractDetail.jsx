@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 import {
   X, Building2, Home, User, DollarSign, Calendar, FileText,
   Phone, Mail, MapPin, CheckCircle, Clock, AlertTriangle,
@@ -87,6 +88,7 @@ const ContractDetail = ({ contract, onClose }) => {
                                             .sort((a, b) => (a.milestoneOrder || 0) - (b.milestoneOrder || 0))
 
   const loadPayments = async () => {
+    useLockBodyScroll(!!contract)
     if (!contract) return
     try {
       setLoadingPayments(true)
@@ -193,8 +195,9 @@ const ContractDetail = ({ contract, onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-overlayIn" style={{ background: 'rgba(15,36,56,0.45)', backdropFilter: 'blur(4px)' }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl animate-scaleIn overflow-hidden max-h-[94vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex h-[90vh] items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-0 sm:px-4"
+    > <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl animate-scaleIn overflow-hidden max-h-[94vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, var(--color-primary-dark), var(--color-primary))' }}>
           <div>

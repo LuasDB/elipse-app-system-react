@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 import { X, FileText, DollarSign, Calendar, UserPlus, Search, TrendingUp, Hammer, Plus, Trash2, AlertCircle } from 'lucide-react'
 import { CONTRACT_STATUS, PAYMENT_SCHEMES, CONTRACT_MODALITIES } from '@/utils/contractConstants'
 import { convertToMXN, formatMXN, formatUSD } from '@/utils/currency'
@@ -213,9 +214,9 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
     const q = buyerSearch.toLowerCase()
     return b.name?.toLowerCase().includes(q) || b.email?.toLowerCase().includes(q) || b.phone?.includes(q)
   })
-
+  useLockBodyScroll(isOpen)
   if (!isOpen) return null
-
+  
   const labelClass = "block text-xs font-semibold uppercase tracking-wider mb-1.5 text-[var(--color-text-secondary)]"
   const selectClass = (name) => `w-full px-3 py-2.5 text-sm rounded-lg border transition-all appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] ${errors[name] ? 'border-red-300 bg-red-50/50' : 'border-[var(--color-border)] bg-white hover:border-gray-300'}`
   const inputClass = (name) => `w-full px-3 py-2.5 text-sm rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] ${errors[name] ? 'border-red-300 bg-red-50/50' : 'border-[var(--color-border)] bg-white hover:border-gray-300'}`
@@ -225,25 +226,45 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-overlayIn" style={{ background: 'rgba(15,36,56,0.45)', backdropFilter: 'blur(4px)' }}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl animate-scaleIn overflow-hidden max-h-[92vh] flex flex-col">
-          {/* Header */}
-          <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, var(--color-primary-dark), var(--color-primary))' }}>
-            <div>
-              <h2 className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>
-                {isEditing ? 'Editar Contrato' : 'Nuevo Contrato'}
-              </h2>
-              <p className="text-xs text-slate-300 mt-0.5">{isEditing ? 'Modifica los datos del contrato' : 'Genera un nuevo contrato de venta'}</p>
-            </div>
-            <button onClick={onClose} className="text-slate-300 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"><X size={20} /></button>
+      <div
+      className="fixed inset-0 z-50 flex h-[90vh] items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-0 sm:px-4"
+    >
+        <div className="bg-white w-full sm:max-w-3xl h-[95vh] sm:h-[95vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-scaleIn">
+    {/* Header */}
+           <div
+          className="px-4 sm:px-6 py-4 flex items-center justify-between flex-shrink-0"
+          style={{
+            background: 'linear-gradient(135deg, var(--color-primary-dark), var(--color-primary))'
+          }}
+        >
+          <div>
+            <h2 className="text-base sm:text-lg font-semibold text-white">
+              {isEditing ? 'Editar Contrato' : 'Nuevo Contrato'}
+            </h2>
+            <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5">
+              {isEditing
+                ? 'Modifica los datos del contrato'
+                : 'Genera un nuevo contrato de venta'}
+            </p>
           </div>
 
+          <button
+            onClick={onClose}
+            className="text-slate-300 hover:text-white p-1 rounded-lg hover:bg-white/10"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
           {/* Form */}
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+          <form
+          onSubmit={handleSubmit}
+          className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-5"
+        >
 
             {/* Proyecto y Unidad */}
             {sectionLabel('Proyecto y Unidad')}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Proyecto <span className="text-red-400">*</span></label>
                 <select name="projectId" value={form.projectId} onChange={handleChange} className={selectClass('projectId')} disabled={isEditing}>
@@ -309,7 +330,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
 
             {/* Datos del contrato */}
             {sectionLabel('Datos del Contrato')}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className={labelClass}>No. de contrato</label>
                 <input type="text" name="contractNumber" value={form.contractNumber} onChange={handleChange} placeholder="Auto-generado" className={inputClass('contractNumber')} />
@@ -330,14 +351,14 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
 
             {/* Tipo de cambio */}
             {sectionLabel('Tipo de Cambio')}
-            <div className="p-4 rounded-lg border-2" style={{ borderColor: 'var(--color-accent)', background: 'var(--color-accent-muted)' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex items-center gap-2 mb-3">
                 <TrendingUp size={16} style={{ color: 'var(--color-accent)' }} />
                 <p className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
                   Los montos se capturan en USD y se convierten a MXN con este TC
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Tipo de cambio (MXN/USD) <span className="text-red-400">*</span></label>
                   <div className="relative">
@@ -356,7 +377,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
 
             {/* Modalidad de seguimiento */}
             {sectionLabel('Modalidad de Seguimiento')}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {CONTRACT_MODALITIES.map(m => {
                 const isActive = form.modality === m.value
                 return (
@@ -395,7 +416,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
 
             {/* Montos */}
             {sectionLabel('Condiciones Económicas (USD)')}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Precio de venta (USD) <span className="text-red-400">*</span></label>
                 <div className="relative">
@@ -425,7 +446,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
 
             {/* Mensualidades — solo Línea 1 */}
             {form.modality === 'monthly' && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Mensualidad (USD)</label>
                   <div className="relative">
@@ -559,7 +580,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
 
             {/* Fechas */}
             {sectionLabel('Fechas Clave')}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Firma de promesa</label>
                 <input type="date" name="promiseDate" value={form.promiseDate} onChange={handleChange} className={inputClass('promiseDate')} />
@@ -569,7 +590,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                 <input type="date" name="signDate" value={form.signDate} onChange={handleChange} className={inputClass('signDate')} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Fecha de escrituración</label>
                 <input type="date" name="notaryDate" value={form.notaryDate} onChange={handleChange} className={inputClass('notaryDate')} />
@@ -602,7 +623,13 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
       </div>
 
       {/* Buyer modal (stacked on top) */}
-      <BuyerFormModal isOpen={buyerModalOpen} onClose={() => setBuyerModalOpen(false)} onSubmit={handleCreateBuyer} buyer={null} loading={buyerLoading} />
+      <BuyerFormModal
+      isOpen={buyerModalOpen}
+      onClose={() => setBuyerModalOpen(false)}
+      onSubmit={handleCreateBuyer}
+      buyer={null}
+      loading={buyerLoading}
+    />
     </>
   )
 }
