@@ -86,9 +86,9 @@ const ContractDetail = ({ contract, onClose }) => {
   const isMilestonesContract = contract?.modality === 'milestones'
   const milestonePayments = (payments || []).filter(p => p.isMilestone)
                                             .sort((a, b) => (a.milestoneOrder || 0) - (b.milestoneOrder || 0))
+  useLockBodyScroll(!!contract)
 
   const loadPayments = async () => {
-    useLockBodyScroll(!!contract)
     if (!contract) return
     try {
       setLoadingPayments(true)

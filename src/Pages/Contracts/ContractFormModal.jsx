@@ -22,7 +22,7 @@ const initialForm = {
   notary: '', notes: ''
 }
 
-const emptyMilestone = () => ({ name: '', amount: '' })
+const emptyMilestone = () => ({ name: '', amount: '', commitmentDate: '' })
 
 const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => {
   const [form, setForm] = useState(initialForm)
@@ -86,7 +86,8 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
         monthlyPayment: contract.monthlyPayment || '', totalPayments: contract.totalPayments || '',
         milestonesTemplate: (contract.milestonesTemplate || []).map(m => ({
           name: m.name || '',
-          amount: m.amount || ''
+          amount: m.amount || '',
+          commitmentDate: m.commitmentDate?.slice(0, 10) || ''
         })),
         exchangeRate: contract.exchangeRate || '',
         exchangeRateDate: contract.exchangeRateDate?.slice(0, 10) || todayISO(),
@@ -119,6 +120,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
         form.milestonesTemplate.forEach((m, idx) => {
           if (!m.name?.trim()) errs[`milestone_${idx}_name`] = 'Nombre requerido'
           if (!m.amount || Number(m.amount) <= 0) errs[`milestone_${idx}_amount`] = 'Monto inválido'
+          if (!m.commitmentDate) errs[`milestone_${idx}_commitmentDate`] = 'Fecha requerida'
         })
       }
     }
@@ -188,6 +190,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
       payload.milestonesTemplate = payload.milestonesTemplate.map((m, i) => ({
         name: m.name.trim(),
         amount: Number(m.amount),
+        commitmentDate: m.commitmentDate,
         order: i + 1
       }))
     }
@@ -487,7 +490,9 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                 {errors.milestones && (
                   <p className="text-xs text-red-500">{errors.milestones}</p>
                 )}
-
+                <p className="text-[10px] italic" style={{ color: 'var(--color-text-muted)' }}>
+                  Captura nombre, monto en USD y fecha compromiso de entrega para cada hito.
+                </p>
                 <div className="space-y-2">
                   {(form.milestonesTemplate || []).map((m, idx) => (
                     <div key={idx} className="p-3 rounded-lg border" style={{ borderColor: 'var(--color-border-light)', background: 'var(--color-surface)' }}>
@@ -507,7 +512,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                       </div>
 
                       <div className="grid grid-cols-12 gap-2">
-                        <div className="col-span-7">
+                        <div className="col-span-5">
                           <input
                             type="text"
                             value={m.name}
@@ -516,7 +521,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                             className={`w-full px-2.5 py-1.5 text-sm rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 ${errors[`milestone_${idx}_name`] ? 'border-red-400' : 'border-[var(--color-border)]'}`}
                           />
                         </div>
-                        <div className="col-span-5">
+                        <div className="col-span-4">
                           <div className="relative">
                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
                             <input
@@ -533,6 +538,15 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                               ≈ {formatMXN(convertToMXN(m.amount, form.exchangeRate))}
                             </p>
                           )}
+                        </div>
+                        <div className="col-span-3">
+                          <input
+                            type="date"
+                            value={m.commitmentDate}
+                            onChange={(e) => updateMilestone(idx, 'commitmentDate', e.target.value)}
+                            title="Fecha compromiso de entrega"
+                            className={`w-full px-2 py-1.5 text-xs rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 ${errors[`milestone_${idx}_commitmentDate`] ? 'border-red-400' : 'border-[var(--color-border)]'}`}
+                          />
                         </div>
                       </div>
                     </div>

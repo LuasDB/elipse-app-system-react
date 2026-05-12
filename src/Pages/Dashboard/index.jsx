@@ -9,6 +9,9 @@ import PageHeader from '@/components/common/PageHeader'
 import paymentsService from '@/services/paymentsService'
 import { formatUSD, formatMXN, formatExchangeRate } from '@/utils/currency'
 
+import TrafficLightBadge from '@/components/common/TrafficLightBadge'
+import { MILESTONE_TRAFFIC } from '@/utils/contractConstants'
+
 const formatPrice = (n) => formatUSD(n)
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '—'
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -242,6 +245,64 @@ const Dashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Semáforo de hitos de obra */}
+      {alerts?.milestonesTraffic?.counts && (
+        <div className="rounded-xl border bg-white mb-8 overflow-hidden" style={{ borderColor: 'var(--color-border-light)', boxShadow: 'var(--shadow-sm)' }}>
+          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
+            <div className="flex items-center gap-2">
+              <Hammer size={18} style={{ color: 'var(--color-accent)' }} />
+              <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Semáforo de hitos de obra</h3>
+            </div>
+            <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+              Hitos pendientes de completar
+            </span>
+          </div>
+          <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {['red', 'yellow', 'green'].map(key => {
+              const config = MILESTONE_TRAFFIC[key]
+              const count = alerts.milestonesTraffic.counts[key] || 0
+              return (
+                <div
+                  key={key}
+                  className={`p-4 rounded-lg border-2 transition-all ${count > 0 ? '' : 'opacity-60'}`}
+                  style={{
+                    borderColor: count > 0 ? config.color : 'var(--color-border-light)',
+                    background: count > 0 ? config.bg : 'white'
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: config.color }}>{config.label}</span>
+                    <div className="w-3 h-3 rounded-full" style={{ background: config.color }} />
+                  </div>
+                  <p className="text-3xl font-bold tracking-tight mb-1" style={{ color: config.color }}>{count}</p>
+                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{config.description}</p>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Top items rojos (vencidos) */}
+          {(alerts.milestonesTraffic.items || []).filter(m => m.light === 'red').length > 0 && (
+            <div className="px-5 py-3 border-t" style={{ borderColor: 'var(--color-border-light)', background: 'var(--color-surface)' }}>
+              <p className="text-[10px] uppercase tracking-wider font-bold mb-2" style={{ color: 'var(--color-danger)' }}>Hitos vencidos</p>
+              <div className="space-y-1">
+                {(alerts.milestonesTraffic.items || []).filter(m => m.light === 'red').slice(0, 5).map((m, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs py-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium truncate" style={{ color: 'var(--color-text)' }}>{m.milestoneName || m.concept}</span>
+                      <span style={{ color: 'var(--color-text-muted)' }}>· {m.buyerName} ({m.unitIdentifier})</span>
+                    </div>
+                    <span className="text-[10px] font-semibold flex-shrink-0 ml-2" style={{ color: 'var(--color-danger)' }}>
+                      {new Date(m.commitmentDate).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Overdue payments */}

@@ -13,6 +13,7 @@ import contractsService from '@/services/contractsService'
 import { CONTRACT_STATUS, CONTRACT_MODALITIES } from '@/utils/contractConstants'
 import { getStatusConfig } from '@/utils/projectConstants'
 import DualPrice from '@/components/common/DualPrice'
+import projectsService from '@/services/projectsService'
 
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
@@ -34,6 +35,9 @@ const ContractsPage = () => {
   const [openMenuId, setOpenMenuId] = useState(null)
   const [activeTab, setActiveTab] = useState('monthly')
 
+  const [projects, setProjects] = useState([])
+  const [selectedProject, setSelectedProject] = useState('') // '' = todos los proyectos
+
   const fetchContracts = useCallback(async () => {
     try {
       setLoading(true)
@@ -45,9 +49,19 @@ const ContractsPage = () => {
   }, [])
 
   useEffect(() => { fetchContracts() }, [fetchContracts])
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const res = await projectsService.getAll()
+        setProjects(res.data || [])
+      } catch (err) { console.error(err) }
+    }
+    loadProjects()
+  }, [])
 
   const filtered = contracts.filter(c => {
     if (statusFilter && c.status !== statusFilter) return false
+    if (selectedProject && c.projectId !== selectedProject) return false
     if (search) {
       const q = search.toLowerCase()
       return c.contractNumber?.toLowerCase().includes(q) ||
@@ -68,19 +82,17 @@ const ContractsPage = () => {
     try {
       if (editingContract) {
         const res = await contractsService.update(editingContract._id, formData)
-        if (res?.data?.shouldRegeneratePayments) {
-          try {
-            await contractsService.regenerateSchedule(editingContract._id)
-            setToast({ message: 'Contrato actualizado y calendario de pagos regenerado', type: 'success' })
-          } catch (regenErr) {
-            setToast({ message: 'Contrato actualizado, pero falló la regeneración de pagos', type: 'warning' })
-          }
+        const stats = res?.data?.regenerationStats
+        if (stats?.fullRegeneration) {
+          setToast({ message: `Contrato actualizado · calendario regenerado (${stats.generated} pagos)`, type: 'success' })
+        } else if (stats && stats.preserved > 0) {
+          setToast({ message: `Contrato actualizado · se conservaron ${stats.preserved} pagos con cobros`, type: 'warning' })
         } else {
           setToast({ message: 'Contrato actualizado', type: 'success' })
         }
       } else {
         await contractsService.create(formData)
-        setToast({ message: 'Contrato creado', type: 'success' })
+        setToast({ message: 'Contrato creado · calendario generado automáticamente', type: 'success' })
       }
       setFormOpen(false)
       setEditingContract(null)
@@ -170,17 +182,37 @@ const ContractsPage = () => {
     )}
 
     {/* Search */}
-    <div className="relative mb-4">
-      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Buscar contrato, comprador, unidad o proyecto..."
-        className="w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/20"
-        style={{ borderColor: 'var(--color-border)' }}
-      />
-    </div>
+    {/* Filtros: proyecto + buscador */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4">
+        <div className="md:col-span-4">
+          <div className="relative">
+            <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+            <select
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border bg-white appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/20 focus:border-[var(--color-accent)] transition-all"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              <option value="">Todos los proyectos</option>
+              {projects.map(p => (
+                <option key={p._id} value={p._id}>{p.name}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+          </div>
+        </div>
+        <div className="md:col-span-8 relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por contrato, comprador o unidad..."
+            className="w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/20 focus:border-[var(--color-accent)] transition-all"
+            style={{ borderColor: 'var(--color-border)' }}
+          />
+        </div>
+      </div>
 
     {/* Tabs */}
     <div className="flex overflow-x-auto gap-1 mb-4 border-b pb-1"

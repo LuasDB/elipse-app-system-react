@@ -80,6 +80,10 @@ const paymentsService = {
     const { data: response } = await apiServices.patch(`/payments/${paymentId}/milestone/commitment`, data)
     return response
   },
+  async getOpenContractsByProject(projectId) {
+    const { data } = await apiServices.get(`/payments/by-project/${projectId}`)
+    return data
+  },
 }
 
 export default paymentsService
