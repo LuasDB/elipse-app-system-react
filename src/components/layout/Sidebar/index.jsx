@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import {
   LayoutDashboard, Users, Building2, FileText,
   DollarSign, ClipboardCheck, BarChart3,
-  LogOut, ChevronLeft, Menu
+  LogOut, ChevronLeft, Menu,HelpCircle
 } from 'lucide-react'
 
 const navItems = [
@@ -15,6 +15,11 @@ const navItems = [
   { to: '/pagos', label: 'Pagos', icon: DollarSign },
   { to: '/entregas', label: 'Entregas', icon: ClipboardCheck },
   { to: '/reportes', label: 'Reportes', icon: BarChart3 },
+  { to: '/ayuda', label: 'Ayuda', icon: HelpCircle},
+]
+
+const footerItems = [
+  { to: '/ayuda', label: 'Ayuda', icon: HelpCircle },
 ]
 
 const Sidebar = () => {
@@ -99,6 +104,9 @@ const Sidebar = () => {
           </NavLink>
         ))}
       </nav>
+
+        
+
 
       {/* User section */}
       <div className="mx-3 mb-4">
