@@ -105,3 +105,22 @@ export const getMilestoneTrafficLight = (milestone) => {
   if (diffDays <= 15) return MILESTONE_TRAFFIC.yellow
   return MILESTONE_TRAFFIC.green
 }
+
+// Campos cuya edición dispara regeneración del calendario de pagos
+export const CRITICAL_CONTRACT_FIELDS = [
+  'modality',
+  'salePrice',
+  'downPayment',
+  'monthlyPayment',
+  'totalPayments',
+  'milestonesTemplate',
+  'signDate',
+  'promiseDate'
+]
+
+// Campos que NO se pueden modificar después de creado (integridad referencial)
+export const LOCKED_CONTRACT_FIELDS = [
+  'projectId',
+  'unitId',
+  'buyerId'
+]

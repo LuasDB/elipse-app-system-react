@@ -4,7 +4,7 @@ import {
   X, Building2, Home, User, DollarSign, Calendar, FileText,
   Phone, Mail, MapPin, CheckCircle, Clock, AlertTriangle,
   ExternalLink, File, Paperclip, ChevronDown, ChevronUp,
-  Hammer, Calendar as CalendarIcon, CheckCircle2, Lock
+  Hammer, Calendar as CalendarIcon, CheckCircle2, Lock,Pencil
 } from 'lucide-react'
 import StatusBadge from '@/components/common/StatusBadge'
 import { CONTRACT_STATUS, PAYMENT_SCHEMES, CONTRACT_MODALITIES, getModalityConfig } from '@/utils/contractConstants'
@@ -19,6 +19,9 @@ import CompleteMilestoneModal from '@/components/common/CompleteMilestoneModal'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import Toast from '@/components/common/Toast'
 import RegisterPaymentModal from '@/Pages/Payments/RegisterPaymentModal'
+import FileUploadZone from '@/components/common/FileUploadZone'
+import contractsService from '@/services/contractsService'
+import { useAuth } from '@/context/AuthContext'
 
 const formatPrice = (n) => formatUSD(n)
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'
@@ -66,7 +69,12 @@ const VouchersList = ({ vouchers, paymentId }) => {
   )
 }
 
-const ContractDetail = ({ contract, onClose }) => {
+const ContractDetail = ({ contract, onClose,onEdit }) => {
+
+  const { user } = useAuth()
+  const canEdit = ['admin', 'gerente'].includes(user?.role)
+
+
   const [payments, setPayments] = useState([])
   const [summary, setSummary] = useState(null)
   const [loadingPayments, setLoadingPayments] = useState(true)
@@ -82,6 +90,15 @@ const ContractDetail = ({ contract, onClose }) => {
   // Estados para registro de pagos
   const [registeringPayment, setRegisteringPayment] = useState(null)
   const [registerLoading, setRegisterLoading] = useState(false)
+  // Para la subida de archivos
+  const [contractFiles, setContractFiles] = useState(contract?.files || [])
+  const [filesLoading, setFilesLoading] = useState(false)
+  //Para la edición de contrato
+
+
+  useEffect(() => {
+    setContractFiles(contract?.files || [])
+  }, [contract])
 
   const isMilestonesContract = contract?.modality === 'milestones'
   const milestonePayments = (payments || []).filter(p => p.isMilestone)
@@ -194,6 +211,35 @@ const ContractDetail = ({ contract, onClose }) => {
     }
   }
 
+  const handleUploadFiles = async (newFiles) => {
+    if (!newFiles?.length) return
+    setFilesLoading(true)
+    try {
+      const res = await contractsService.uploadFiles(contract._id, newFiles)
+      // El backend devuelve { filesAdded, files: [...nuevos] }
+      const added = res?.data?.files || []
+      setContractFiles(prev => [...prev, ...added])
+      setToast({ message: `${added.length} archivo(s) subido(s)`, type: 'success' })
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Error al subir archivos'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setFilesLoading(false)
+    }
+  }
+
+  const handleRemoveFile = async (fileName) => {
+    if (!window.confirm('¿Eliminar este archivo permanentemente?')) return
+    try {
+      await contractsService.removeFile(contract._id, fileName)
+      setContractFiles(prev => prev.filter(f => f.fileName !== fileName))
+      setToast({ message: 'Archivo eliminado', type: 'success' })
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Error al eliminar archivo'
+      setToast({ message: msg, type: 'error' })
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex h-[90vh] items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-0 sm:px-4"
@@ -217,7 +263,23 @@ const ContractDetail = ({ contract, onClose }) => {
             </div>
             <p className="text-xs text-slate-300 mt-0.5">Detalle completo del contrato</p>
           </div>
-          <button onClick={onClose} className="text-slate-300 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"><X size={20} /></button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            
+            {canEdit && (
+              <button
+                onClick={() => onEdit(contract)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
+                title="Editar contrato"
+              >
+                <Pencil size={13} />
+                <span className="hidden sm:inline">Editar</span>
+              </button>
+            )}
+
+            <button onClick={onClose} className="text-slate-300 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -312,6 +374,27 @@ const ContractDetail = ({ contract, onClose }) => {
               <InfoRow icon={Calendar} label="Entrega" value={formatDate(contract.deliveryDate)} />
             </div>
             {contract.notary && <InfoRow icon={FileText} label="Notaría" value={contract.notary} />}
+          </div>
+
+          {/* Documentación del contrato */}
+          <div className="p-4 rounded-xl border" style={{ borderColor: 'var(--color-border-light)', background: 'var(--color-surface)' }}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-accent)' }}>
+                Documentación
+              </p>
+              {filesLoading && (
+                <div className="w-4 h-4 border-2 border-gray-200 border-t-[var(--color-primary)] rounded-full animate-spin" />
+              )}
+            </div>
+            <FileUploadZone
+              existingFiles={contractFiles}
+              pendingFiles={[]}
+              onAddPending={handleUploadFiles}
+              onRemoveExisting={handleRemoveFile}
+              serverBase={serverBase}
+              contractId={contract._id}
+              disabled={filesLoading}
+            />
           </div>
 
           {/* SECCIÓN DE PAGOS */}
@@ -562,36 +645,7 @@ const ContractDetail = ({ contract, onClose }) => {
             )}
           </div>
 
-          {/* Archivos del contrato */}
-          {contract.files && contract.files.length > 0 && (
-            <div className="p-4 rounded-xl border" style={{ borderColor: 'var(--color-border-light)', background: 'var(--color-surface)' }}>
-              <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--color-accent)' }}>
-                Documentos del Contrato ({contract.files.length})
-              </p>
-              <div className="space-y-1.5">
-                {contract.files.map((f, i) => (
-                  <a
-                    key={i}
-                    href={`${serverBase}/uploads/contracts/${contract._id}/${f.fileName}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 rounded-lg bg-white border border-[var(--color-border-light)] hover:border-gray-300 transition-colors group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: f.mimetype?.includes('pdf') ? '#DC26261A' : '#2563EB1A' }}>
-                        <File size={14} style={{ color: f.mimetype?.includes('pdf') ? '#DC2626' : '#2563EB' }} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text)' }}>{f.originalName}</p>
-                        <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{formatFileSize(f.size)} · {formatDateShort(f.uploadedAt)}</p>
-                      </div>
-                    </div>
-                    <ExternalLink size={14} className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--color-info)' }} />
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
+          
 
           {/* Notas */}
           {contract.notes && (

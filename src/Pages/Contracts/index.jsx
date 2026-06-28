@@ -14,6 +14,7 @@ import { CONTRACT_STATUS, CONTRACT_MODALITIES } from '@/utils/contractConstants'
 import { getStatusConfig } from '@/utils/projectConstants'
 import DualPrice from '@/components/common/DualPrice'
 import projectsService from '@/services/projectsService'
+import { useAuth } from '@/context/AuthContext'
 
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
@@ -37,6 +38,8 @@ const ContractsPage = () => {
 
   const [projects, setProjects] = useState([])
   const [selectedProject, setSelectedProject] = useState('') // '' = todos los proyectos
+
+  
 
   const fetchContracts = useCallback(async () => {
     try {
@@ -77,29 +80,56 @@ const ContractsPage = () => {
   const monthlyCount = filtered.filter(c => (c.modality || 'monthly') === 'monthly').length
   const milestonesCount = filtered.filter(c => c.modality === 'milestones').length
 
-  const handleSubmit = async (formData) => {
+  const handleSubmit = async (formData, pendingFiles = []) => {
     setFormLoading(true)
     try {
+      let contractId
+      let successMessage
+
       if (editingContract) {
         const res = await contractsService.update(editingContract._id, formData)
+        contractId = editingContract._id
         const stats = res?.data?.regenerationStats
         if (stats?.fullRegeneration) {
-          setToast({ message: `Contrato actualizado · calendario regenerado (${stats.generated} pagos)`, type: 'success' })
+          successMessage = `Contrato actualizado · calendario regenerado (${stats.generated} pagos)`
         } else if (stats && stats.preserved > 0) {
-          setToast({ message: `Contrato actualizado · se conservaron ${stats.preserved} pagos con cobros`, type: 'warning' })
+          successMessage = `Contrato actualizado · se conservaron ${stats.preserved} pagos con cobros`
         } else {
-          setToast({ message: 'Contrato actualizado', type: 'success' })
+          successMessage = 'Contrato actualizado'
         }
       } else {
-        await contractsService.create(formData)
-        setToast({ message: 'Contrato creado · calendario generado automáticamente', type: 'success' })
+        const res = await contractsService.create(formData)
+        contractId = res?.data?._id || res?._id
+        successMessage = 'Contrato creado · calendario generado automáticamente'
       }
+
+      // Subir archivos pendientes (si hay) — desacoplado del create/update
+      if (pendingFiles.length > 0 && contractId) {
+        try {
+          await contractsService.uploadFiles(contractId, pendingFiles)
+          successMessage += ` · ${pendingFiles.length} archivo(s) subido(s)`
+        } catch (uploadErr) {
+          // El contrato sí se guardó, pero falló la subida. Avisamos pero no abortamos.
+          setToast({
+            message: `Contrato guardado, pero falló la subida de archivos. Puedes reintentar desde el detalle.`,
+            type: 'warning'
+          })
+          setFormOpen(false)
+          setEditingContract(null)
+          fetchContracts()
+          return
+        }
+      }
+
+      setToast({ message: successMessage, type: 'success' })
       setFormOpen(false)
       setEditingContract(null)
       fetchContracts()
     } catch (error) {
       setToast({ message: error.message || 'Error al guardar', type: 'error' })
-    } finally { setFormLoading(false) }
+    } finally {
+      setFormLoading(false)
+    }
   }
 
   const handleDelete = async () => {
@@ -363,6 +393,13 @@ const ContractsPage = () => {
       <ContractDetail
         contract={selectedContract}
         onClose={() => { setDetailOpen(false); setSelectedContract(null) }}
+         onEdit={(contract) => {
+            // Cerrar el detalle y abrir el formulario en modo edición
+            setDetailOpen(false)
+            setSelectedContract(null)
+            setEditingContract(contract)
+            setFormOpen(true)
+          }}
       />
     )}
 

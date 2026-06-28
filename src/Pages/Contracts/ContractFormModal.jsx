@@ -8,6 +8,7 @@ import unitsService from '@/services/unitsService'
 import buyersService from '@/services/buyersService'
 import usersService from '@/services/usersService'
 import BuyerFormModal from './BuyerFormModal'
+import FileUploadZone from '@/components/common/FileUploadZone'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 
@@ -27,6 +28,7 @@ const emptyMilestone = () => ({ name: '', amount: '', commitmentDate: '' })
 const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => {
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
+  const [pendingFiles, setPendingFiles] = useState([])
   const isEditing = !!contract
 
   // Lookups
@@ -37,6 +39,8 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
   const [buyerSearch, setBuyerSearch] = useState('')
   const [buyerModalOpen, setBuyerModalOpen] = useState(false)
   const [buyerLoading, setBuyerLoading] = useState(false)
+  // Editar
+  const [originalForm, setOriginalForm] = useState(null)
 
   // Load lookups
   useEffect(() => {
@@ -97,11 +101,24 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
         deliveryDate: contract.deliveryDate?.slice(0, 10) || '',
         notary: contract.notary || '', notes: contract.notes || ''
       })
+      // Guardar snapshot para detectar cambios
+      setOriginalForm({
+        modality: contract.modality || 'monthly',
+        salePrice: contract.salePrice || '',
+        downPayment: contract.downPayment || '',
+        monthlyPayment: contract.monthlyPayment || '',
+        totalPayments: contract.totalPayments || '',
+        milestonesTemplate: JSON.stringify(contract.milestonesTemplate || []),
+        signDate: contract.signDate?.slice(0, 10) || '',
+        promiseDate: contract.promiseDate?.slice(0, 10) || ''
+      })
     } else {
       setForm(initialForm)
+      setOriginalForm(null)
     }
     setErrors({})
     setBuyerSearch('')
+    setPendingFiles([])
   }, [contract, isOpen])
 
   const validate = () => {
@@ -146,6 +163,35 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
     })
   }
 
+  // Detectar qué campos críticos cambiaron vs el snapshot original
+  const criticalChanges = (() => {
+    if (!isEditing || !originalForm) return []
+    const changes = []
+    if (form.modality !== originalForm.modality) changes.push('Modalidad')
+    if (String(form.salePrice) !== String(originalForm.salePrice)) changes.push('Precio de venta')
+    if (String(form.downPayment) !== String(originalForm.downPayment)) changes.push('Enganche')
+    if (form.modality === 'monthly') {
+      if (String(form.monthlyPayment) !== String(originalForm.monthlyPayment)) changes.push('Mensualidad')
+      if (String(form.totalPayments) !== String(originalForm.totalPayments)) changes.push('Total de pagos')
+    }
+    if (form.modality === 'milestones') {
+      const currentMs = JSON.stringify((form.milestonesTemplate || []).map(m => ({
+        name: m.name, amount: Number(m.amount), commitmentDate: m.commitmentDate
+      })))
+      // Normalizar el original también (puede tener Date objects o strings)
+      const originalMs = JSON.parse(originalForm.milestonesTemplate || '[]')
+      const normalizedOriginal = JSON.stringify(originalMs.map(m => ({
+        name: m.name,
+        amount: Number(m.amount),
+        commitmentDate: m.commitmentDate?.slice ? m.commitmentDate.slice(0, 10) : m.commitmentDate
+      })))
+      if (currentMs !== normalizedOriginal) changes.push('Hitos de obra')
+    }
+    if (form.signDate !== originalForm.signDate) changes.push('Fecha de firma')
+    if (form.promiseDate !== originalForm.promiseDate) changes.push('Fecha de promesa')
+    return changes
+  })()
+
   const addMilestone = () => {
     setForm(prev => ({
       ...prev,
@@ -180,6 +226,16 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
     e?.preventDefault?.()
     if (!validate()) return
 
+    // Confirmación extra si hay cambios críticos
+    if (criticalChanges.length > 0) {
+      const confirmed = window.confirm(
+        `Vas a modificar campos críticos: ${criticalChanges.join(', ')}.\n\n` +
+        `Esto regenerará el calendario de pagos (los pagos cobrados se conservan).\n\n` +
+        `¿Deseas continuar?`
+      )
+      if (!confirmed) return
+    }
+
     const payload = { ...form }
 
     if (payload.modality === 'monthly') {
@@ -195,7 +251,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
       }))
     }
 
-    await onSubmit(payload)
+    await onSubmit(payload, pendingFiles)
   }
 
   // Buyer creation inline
@@ -251,6 +307,17 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
             </p>
           </div>
 
+          {/* Banner informativo de edición */}
+          {isEditing && (
+            <div className="px-6 py-3 flex items-start gap-2.5" style={{ background: 'var(--color-info-bg)', borderBottom: '1px solid var(--color-border-light)' }}>
+              <AlertCircle size={16} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-info)' }} />
+              <div className="flex-1 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                <p className="font-semibold mb-0.5" style={{ color: 'var(--color-text)' }}>Modo edición</p>
+                <p>Proyecto, unidad y comprador no se pueden modificar. Si cambias montos, modalidad o hitos, se regenerará el calendario de pagos (los pagos cobrados se conservan).</p>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={onClose}
             className="text-slate-300 hover:text-white p-1 rounded-lg hover:bg-white/10"
@@ -301,9 +368,10 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                   value={selectedBuyer ? selectedBuyer.name : buyerSearch}
                   onChange={(e) => { setBuyerSearch(e.target.value); if (form.buyerId) setForm(prev => ({ ...prev, buyerId: '' })) }}
                   placeholder="Buscar comprador por nombre, correo o teléfono..."
-                  className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 ${errors.buyerId ? 'border-red-300' : 'border-[var(--color-border)]'}`}
+                  disabled={isEditing}
+                  className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 ${errors.buyerId ? 'border-red-300' : 'border-[var(--color-border)]'} ${isEditing ? 'bg-gray-50 cursor-not-allowed' : ''}`}
                 />
-                {buyerSearch && !form.buyerId && (
+                {buyerSearch && !form.buyerId && !isEditing && (
                   <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border rounded-lg shadow-lg max-h-40 overflow-y-auto" style={{ borderColor: 'var(--color-border)' }}>
                     {filteredBuyers.length === 0 ? (
                       <div className="px-4 py-3 text-sm text-center" style={{ color: 'var(--color-text-muted)' }}>
@@ -624,6 +692,48 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
               <label className={labelClass}>Observaciones</label>
               <textarea name="notes" value={form.notes} onChange={handleChange} rows={2} placeholder="Condiciones especiales, notas..." className="w-full px-4 py-2.5 text-sm rounded-lg border border-[var(--color-border)] bg-white hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-all resize-none" />
             </div>
+
+            {/* Documentación */}
+            {sectionLabel('Documentación')}
+            <FileUploadZone
+              pendingFiles={pendingFiles}
+              onAddPending={(files) => setPendingFiles(prev => [...prev, ...files])}
+              onRemovePending={(index) => setPendingFiles(prev => prev.filter((_, i) => i !== index))}
+              disabled={loading}
+            />
+            {isEditing && (
+              <p className="text-[10px] italic" style={{ color: 'var(--color-text-muted)' }}>
+                Para ver y administrar archivos ya guardados, abre el detalle del contrato.
+              </p>
+            )}
+
+            {/* Aviso de regeneración crítica */}
+            {criticalChanges.length > 0 && (
+              <div className="p-4 rounded-lg border-2" style={{ borderColor: 'var(--color-warning)', background: 'var(--color-warning-bg)' }}>
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle size={18} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-warning)' }} />
+                  <div className="flex-1">
+                    <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--color-warning)' }}>
+                      Se regenerará el calendario de pagos
+                    </p>
+                    <p className="text-[11px] mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                      Estás modificando campos que impactan el calendario:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {criticalChanges.map(label => (
+                        <span key={label} className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: 'white', color: 'var(--color-warning)', border: '1px solid var(--color-warning)' }}>
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                      Al guardar: los pagos <strong>no cobrados</strong> se eliminarán y se generará un nuevo calendario.
+                      Los pagos con cobros (totales o parciales) se conservarán como histórico.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex justify-end gap-3 pt-4 border-t border-[var(--color-border-light)]">
