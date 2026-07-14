@@ -22,8 +22,6 @@ const authService ={
     },
     async login(email,password){
         try {
-            console.log('Enviados',email,password)
-
             const { data } = await apiServices.post('/auth/login',{email,password})
             if(data.success){
                 const { token, user } = data.data
@@ -40,7 +38,6 @@ const authService ={
     },
     logout(){
         clearStorage()
-        window.location.href('/login')
     },
     isAuthenticated(){
         return !!localStorage.getItem('token')

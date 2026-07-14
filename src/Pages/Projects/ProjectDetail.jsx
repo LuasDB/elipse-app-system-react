@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Plus, Search, Pencil, Trash2, MoreHorizontal,
-  Home, Car, Warehouse, Ruler, BedDouble, Bath, ChevronDown, DollarSign, Filter
+  ArrowLeft, Plus, Search,
+  Home, ChevronDown
 } from 'lucide-react'
 import StatusBadge from '@/components/common/StatusBadge'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
@@ -33,7 +33,6 @@ const ProjectDetail = () => {
   const [deletingUnit, setDeletingUnit] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [toast, setToast] = useState(null)
-  const [openMenuId, setOpenMenuId] = useState(null)
 
   const fetchData = useCallback(async () => {
     try {
@@ -90,10 +89,17 @@ const ProjectDetail = () => {
       setToast({ message: 'Unidad eliminada', type: 'success' })
       setDeleteOpen(false)
       setDeletingUnit(null)
+      setFormOpen(false)
+      setEditingUnit(null)
       fetchData()
     } catch (error) {
       setToast({ message: error.message || 'Error al eliminar', type: 'error' })
     } finally { setDeleteLoading(false) }
+  }
+
+  const handleRequestDelete = (unit) => {
+    setDeletingUnit(unit)
+    setDeleteOpen(true)
   }
 
   if (loading) return (
@@ -184,7 +190,7 @@ const ProjectDetail = () => {
           <table className="w-full">
             <thead>
               <tr style={{ background: 'var(--color-surface-sunken)' }}>
-                {['Unidad', 'Tipo', 'm²', 'Rec.', 'Baños', 'Est.', 'Bodega', 'Precio Lista (USD)', 'Estado', ''].map((h, i) => (
+                {['Unidad', 'Tipo', 'm²', 'Rec.', 'Baños', 'Est.', 'Bodega', 'Precio Lista (USD)', 'Estado'].map((h, i) => (
                   <th key={i} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border-light)' }}>{h}</th>
                 ))}
               </tr>
@@ -192,7 +198,7 @@ const ProjectDetail = () => {
             <tbody>
               {filteredUnits.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-16">
+                  <td colSpan={9} className="text-center py-16">
                     <Home size={36} className="mx-auto mb-3" style={{ color: 'var(--color-border)' }} />
                     <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
                       {units.length === 0 ? 'Aún no hay unidades registradas' : 'No se encontraron resultados'}
@@ -206,7 +212,12 @@ const ProjectDetail = () => {
                 const uStatus = getStatusConfig(UNIT_STATUS, unit.status)
                 const uType = UNIT_TYPES.find(t => t.value === unit.unitType)
                 return (
-                  <tr key={unit._id || idx} className="group hover:bg-[var(--color-surface)] transition-colors" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
+                  <tr
+                    key={unit._id || idx}
+                    onClick={() => { setEditingUnit(unit); setFormOpen(true) }}
+                    className="hover:bg-[var(--color-surface)] transition-colors cursor-pointer"
+                    style={{ borderBottom: '1px solid var(--color-border-light)' }}
+                  >
                     <td className="px-4 py-3">
                       <span className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{unit.identifier}</span>
                       {unit.floor > 0 && <span className="text-xs ml-1.5" style={{ color: 'var(--color-text-muted)' }}>Piso {unit.floor}</span>}
@@ -219,26 +230,6 @@ const ProjectDetail = () => {
                     <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-secondary)' }}>{unit.hasStorage ? (unit.storageNumber || 'Sí') : '—'}</td>
                     <td className="px-4 py-3 text-sm font-medium" style={{ color: 'var(--color-text)' }}>{formatPrice(unit.listPrice)}</td>
                     <td className="px-4 py-3"><StatusBadge label={uStatus.label} color={uStatus.color} bg={uStatus.bg} size="xs" /></td>
-                    <td className="px-4 py-3">
-                      <div className="relative">
-                        <button onClick={() => setOpenMenuId(openMenuId === (unit._id || idx) ? null : (unit._id || idx))} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors opacity-0 group-hover:opacity-100">
-                          <MoreHorizontal size={16} style={{ color: 'var(--color-text-muted)' }} />
-                        </button>
-                        {openMenuId === (unit._id || idx) && (
-                          <>
-                            <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
-                            <div className="absolute right-0 top-full mt-1 z-20 w-40 bg-white rounded-lg border shadow-lg py-1 animate-scaleIn origin-top-right" style={{ borderColor: 'var(--color-border)' }}>
-                              <button onClick={() => { setEditingUnit(unit); setFormOpen(true); setOpenMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-[var(--color-surface)] transition-colors" style={{ color: 'var(--color-text-secondary)' }}>
-                                <Pencil size={14} /> Editar
-                              </button>
-                              <button onClick={() => { setDeletingUnit(unit); setDeleteOpen(true); setOpenMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-red-50 transition-colors" style={{ color: 'var(--color-danger)' }}>
-                                <Trash2 size={14} /> Eliminar
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </td>
                   </tr>
                 )
               })}
@@ -253,7 +244,7 @@ const ProjectDetail = () => {
       </div>
 
       {/* Modals */}
-      <UnitFormModal isOpen={formOpen} onClose={() => { setFormOpen(false); setEditingUnit(null) }} onSubmit={handleSubmitUnit} unit={editingUnit} loading={formLoading} />
+      <UnitFormModal isOpen={formOpen} onClose={() => { setFormOpen(false); setEditingUnit(null) }} onSubmit={handleSubmitUnit} onDelete={handleRequestDelete} unit={editingUnit} loading={formLoading} />
       <ConfirmDialog isOpen={deleteOpen} onClose={() => { setDeleteOpen(false); setDeletingUnit(null) }} onConfirm={handleDeleteUnit} title="Eliminar unidad" message={`¿Eliminar la unidad ${deletingUnit?.identifier}? Esta acción no se puede deshacer.`} loading={deleteLoading} />
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>

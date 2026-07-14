@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Home, Ruler, Car, DollarSign, Hash } from 'lucide-react'
+import { X, Pencil, Trash2 } from 'lucide-react'
 import { UNIT_TYPES, UNIT_STATUS, ORIENTATIONS } from '@/utils/projectConstants'
 
 const initialForm = {
@@ -12,7 +12,7 @@ const initialForm = {
   listPrice: '', finalPrice: '', status: 'disponible', notes: '',
 }
 
-const UnitFormModal = ({ isOpen, onClose, onSubmit, unit, loading }) => {
+const UnitFormModal = ({ isOpen, onClose, onSubmit, onDelete, unit, loading }) => {
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
   const isEditing = !!unit
@@ -76,7 +76,25 @@ const UnitFormModal = ({ isOpen, onClose, onSubmit, unit, loading }) => {
             </h2>
             <p className="text-xs text-slate-300 mt-0.5">{isEditing ? 'Modifica los datos de la unidad' : 'Registra una nueva unidad en el proyecto'}</p>
           </div>
-          <button onClick={onClose} className="text-slate-300 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"><X size={20} /></button>
+          <div className="flex items-center gap-1">
+            {isEditing && onDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(unit)}
+                title="Eliminar unidad"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-300 hover:text-white hover:bg-red-500/30 transition-all"
+              >
+                <Trash2 size={15} />
+                <span className="hidden sm:inline">Eliminar</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-slate-300 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10 ml-1"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Form */}
