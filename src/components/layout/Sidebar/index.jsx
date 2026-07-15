@@ -3,20 +3,48 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import {
   LayoutDashboard, Users, Building2, FileText,
-  DollarSign, ClipboardCheck, BarChart3,
+  DollarSign, ClipboardCheck, BarChart3, Briefcase, UserCircle,
   LogOut, ChevronLeft, HelpCircle, X
 } from 'lucide-react'
 
 const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/usuarios', label: 'Usuarios', icon: Users },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'gerente', 'cobranza'] },
+  { to: '/usuarios', label: 'Usuarios', icon: Users, roles: ['admin'] },
   { to: '/proyectos', label: 'Proyectos', icon: Building2 },
   { to: '/contratos', label: 'Contratos', icon: FileText },
   { to: '/pagos', label: 'Pagos', icon: DollarSign },
+  { to: '/vendedores', label: 'Vendedores', icon: Briefcase, roles: ['admin', 'gerente'] },
   { to: '/entregas', label: 'Entregas', icon: ClipboardCheck },
-  { to: '/reportes', label: 'Reportes', icon: BarChart3 },
-  { to: '/ayuda', label: 'Ayuda', icon: HelpCircle },
+  { to: '/reportes', label: 'Reportes', icon: BarChart3, roles: ['admin', 'gerente'] },
 ]
+
+const helpItem = { to: '/ayuda', label: 'Ayuda', icon: HelpCircle }
+
+const navLinkClassName = (isCollapsed) => ({ isActive }) => `
+  group flex items-center gap-3 rounded-lg text-[13.5px] font-medium transition-all duration-200
+  ${isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'}
+  ${isActive
+    ? 'bg-white/10 text-white shadow-sm'
+    : 'text-slate-400 hover:text-white hover:bg-white/5'
+  }
+`
+
+const NavItemContent = ({ item, isActive, isCollapsed }) => (
+  <>
+    <item.icon
+      size={19}
+      style={isActive ? { color: 'var(--color-accent)' } : {}}
+      className={!isActive ? 'group-hover:text-slate-300 flex-shrink-0' : 'flex-shrink-0'}
+    />
+    {!isCollapsed && <span className="truncate">{item.label}</span>}
+    {isActive && !isCollapsed && (
+      <div
+        className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0"
+        style={{ background: 'var(--color-accent)' }}
+      />
+    )}
+  </>
+)
 
 const Sidebar = ({ isMobile = false, onClose }) => {
   const [collapsed, setCollapsed] = useState(false)
@@ -25,6 +53,11 @@ const Sidebar = ({ isMobile = false, onClose }) => {
 
   // En mobile nunca se colapsa
   const isCollapsed = isMobile ? false : collapsed
+
+  const visibleNavItems = navItems.filter(item => !item.roles || item.roles.includes(user?.role))
+  if (user?.role === 'vendedor' && user?._id) {
+    visibleNavItems.splice(5, 0, { to: `/vendedores/${user._id}`, label: 'Mi Perfil', icon: UserCircle })
+  }
 
   const handleLogout = () => {
     logout()
@@ -93,43 +126,32 @@ const Sidebar = ({ isMobile = false, onClose }) => {
 
       {/* Navegación */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => (
+        {visibleNavItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             onClick={onClose}
-            className={({ isActive }) => `
-              group flex items-center gap-3 rounded-lg text-[13.5px] font-medium transition-all duration-200
-              ${isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'}
-              ${isActive
-                ? 'bg-white/10 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }
-            `}
+            className={navLinkClassName(isCollapsed)}
           >
-            {({ isActive }) => (
-              <>
-                <item.icon
-                  size={19}
-                  style={isActive ? { color: 'var(--color-accent)' } : {}}
-                  className={!isActive ? 'group-hover:text-slate-300 flex-shrink-0' : 'flex-shrink-0'}
-                />
-                {!isCollapsed && <span className="truncate">{item.label}</span>}
-                {isActive && !isCollapsed && (
-                  <div
-                    className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ background: 'var(--color-accent)' }}
-                  />
-                )}
-              </>
-            )}
+            {({ isActive }) => <NavItemContent item={item} isActive={isActive} isCollapsed={isCollapsed} />}
           </NavLink>
         ))}
       </nav>
 
+      {/* Ayuda — fija al fondo del menú, arriba del usuario */}
+      <div className="px-3 flex-shrink-0">
+        <NavLink
+          to={helpItem.to}
+          onClick={onClose}
+          className={navLinkClassName(isCollapsed)}
+        >
+          {({ isActive }) => <NavItemContent item={helpItem} isActive={isActive} isCollapsed={isCollapsed} />}
+        </NavLink>
+      </div>
+
       {/* Sección de usuario */}
       <div className="mx-3 mb-4 flex-shrink-0">
-        <div className="h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent mb-3" />
+        <div className="h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent my-3" />
         <div className={`flex items-center gap-3 px-3 py-2 ${isCollapsed ? 'justify-center' : ''}`}>
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0"

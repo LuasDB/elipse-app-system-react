@@ -1,11 +1,16 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   ChevronDown, ChevronUp, BookOpen, Rocket, Building2, Home,
   Users, FileText, DollarSign, Hammer, LayoutDashboard,
-  TrendingUp, Shield, HelpCircle
+  TrendingUp, Shield, HelpCircle, Briefcase, BarChart3, UserCog
 } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
+import RoleBadge from '@/components/common/RoleBadge'
+import { useAuth } from '@/context/AuthContext'
 
+// roles: undefined = visible para todos los roles. Si se define, debe reflejar
+// exactamente los mismos roles que dan acceso al módulo real (ver Sidebar y App/index.jsx),
+// para que esta guía nunca ofrezca ayuda de algo que el usuario no puede abrir.
 const helpSections = [
   {
     id: 'primeros-pasos',
@@ -15,21 +20,78 @@ const helpSections = [
     content: (
       <>
         <h4>Bienvenido a Elipse</h4>
-        <p>Elipse es el sistema de gestión de preventas inmobiliarias que centraliza proyectos, unidades, compradores, contratos y cobranza en una sola plataforma.</p>
+        <p>Elipse es el sistema de gestión de preventas inmobiliarias que centraliza proyectos, unidades, compradores, contratos, cobranza y comisiones de vendedores en una sola plataforma.</p>
 
         <h4>Inicio de sesión</h4>
         <p>Ingresa con el correo y contraseña que te proporcionó el administrador. Si olvidaste tu contraseña, contacta al administrador del sistema para restablecerla.</p>
 
         <h4>Navegación</h4>
-        <p>El menú lateral izquierdo te da acceso a los módulos principales. La sección que estás viendo siempre queda resaltada. Los módulos visibles dependen del rol asignado a tu cuenta.</p>
+        <p>El menú lateral izquierdo te da acceso a los módulos principales. La sección que estás viendo siempre queda resaltada. Los módulos visibles dependen del rol asignado a tu cuenta — el acceso al botón <strong>Ayuda</strong>, siempre visible al final del menú, no cambia.</p>
 
         <h4>Roles del sistema</h4>
         <ul>
-          <li><strong>Administrador:</strong> acceso total a todos los módulos y configuraciones.</li>
-          <li><strong>Gerente:</strong> gestión de proyectos, contratos y cobranza. Puede editar contratos.</li>
-          <li><strong>Vendedor:</strong> gestión de compradores y consulta de contratos asignados.</li>
-          <li><strong>Cobranza:</strong> registro y seguimiento de pagos.</li>
+          <li><strong>Administrador:</strong> acceso total a todos los módulos, usuarios y configuraciones.</li>
+          <li><strong>Gerente:</strong> gestión de proyectos, contratos, cobranza, vendedores y reportes. Puede editar contratos.</li>
+          <li><strong>Vendedor:</strong> gestión de compradores, creación y consulta de sus propios contratos, y consulta de su perfil de comisiones ("Mi Perfil").</li>
+          <li><strong>Cobranza:</strong> consulta de proyectos y contratos, registro y seguimiento de pagos.</li>
         </ul>
+        <p>Esta guía se ajusta automáticamente: solo muestra las secciones de los módulos a los que tu rol tiene acceso.</p>
+      </>
+    )
+  },
+  {
+    id: 'dashboard',
+    title: 'Dashboard',
+    icon: LayoutDashboard,
+    color: '#2563EB',
+    roles: ['admin', 'gerente', 'cobranza'],
+    content: (
+      <>
+        <h4>Vista general</h4>
+        <p>El dashboard es la pantalla principal del sistema. Muestra el pulso de tu operación de cobranza en tiempo real. No está disponible para el rol Vendedor, cuya pantalla de inicio es el módulo de Contratos.</p>
+
+        <h4>Cards de alertas</h4>
+        <p>Indicadores principales:</p>
+        <ul>
+          <li><strong>Pagos vencidos:</strong> pagos cuya fecha de vencimiento ya pasó.</li>
+          <li><strong>Vencen este mes:</strong> próximos cobros del mes en curso.</li>
+          <li><strong>Próximos 30 días:</strong> pagos por cobrar en los próximos 30 días.</li>
+          <li><strong>Listos para confirmar:</strong> hitos pagados que falta marcar como completados.</li>
+        </ul>
+
+        <h4>Cobranza por periodo</h4>
+        <p>Sección que muestra el total cobrado en un periodo configurable: hoy, esta semana, este mes, este año o un rango personalizado. Incluye total USD, equivalente MXN, número de movimientos y TC promedio del periodo. El periodo se calcula con la <strong>fecha del tipo de cambio</strong> de cada pago (la fecha real del cobro), no con la fecha en que se capturó en el sistema.</p>
+
+        <h4>Semáforo de hitos de obra</h4>
+        <p>Muestra el estado global de los hitos pendientes en toda la operación: cuántos están en rojo, amarillo y verde. Si hay hitos vencidos, lista los principales para acción inmediata.</p>
+
+        <h4>Listas de pagos por vencer y vencidos</h4>
+        <p>En la parte inferior del dashboard, dos listas accionables con los próximos pagos por cobrar y los vencidos. Click en cualquier item para ir al pago correspondiente.</p>
+      </>
+    )
+  },
+  {
+    id: 'usuarios',
+    title: 'Usuarios',
+    icon: UserCog,
+    color: '#4F46E5',
+    roles: ['admin'],
+    content: (
+      <>
+        <h4>Acceso al módulo</h4>
+        <p>El módulo de Usuarios es exclusivo para el rol <strong>Administrador</strong>. Desde aquí se crean y administran todas las cuentas del sistema.</p>
+
+        <h4>Crear un usuario</h4>
+        <p>Click en <strong>"Nuevo usuario"</strong>. Captura nombre, correo, contraseña y asigna uno de los cuatro roles: Administrador, Gerente de ventas, Vendedor o Cobranza.</p>
+
+        <h4>Activar / desactivar usuarios</h4>
+        <p>Un usuario marcado como <strong>Inactivo</strong> no puede iniciar sesión, pero conserva su historial (contratos, comisiones, pagos registrados). Úsalo para dar de baja a alguien sin perder trazabilidad, en lugar de eliminarlo.</p>
+
+        <h4>Editar y eliminar</h4>
+        <p>Puedes actualizar nombre, correo y rol de un usuario en cualquier momento. Eliminar una cuenta es una acción definitiva; si el usuario tiene historial asociado (por ejemplo contratos como vendedor), es preferible desactivarla.</p>
+
+        <h4>Filtros</h4>
+        <p>La lista se puede filtrar por rol y por estatus (activos / inactivos), y buscar por nombre o correo.</p>
       </>
     )
   },
@@ -41,7 +103,7 @@ const helpSections = [
     content: (
       <>
         <h4>Crear un proyecto</h4>
-        <p>Click en <strong>"Nuevo proyecto"</strong> desde el módulo de Proyectos. Captura nombre, ubicación, descripción y estatus del desarrollo.</p>
+        <p>Click en <strong>"Nuevo proyecto"</strong> desde el módulo de Proyectos. Captura nombre, ubicación, descripción y estatus del desarrollo. Crear, editar y eliminar proyectos está reservado a Administrador y Gerente; el resto de los roles puede consultarlos.</p>
 
         <h4>Estados del proyecto</h4>
         <ul>
@@ -113,7 +175,10 @@ const helpSections = [
     content: (
       <>
         <h4>Crear un contrato</h4>
-        <p>Desde el módulo de Contratos, click en <strong>"Nuevo contrato"</strong>. Selecciona el proyecto, unidad disponible y comprador. Si el comprador no existe, puedes crearlo desde el mismo modal.</p>
+        <p>Desde el módulo de Contratos, click en <strong>"Nuevo contrato"</strong>. Selecciona el proyecto, unidad disponible y comprador. Si el comprador no existe, puedes crearlo desde el mismo modal. Administrador, Gerente y Vendedor pueden crear contratos.</p>
+
+        <h4>Vendedor asignado</h4>
+        <p>Todo contrato queda asociado a un vendedor. Un usuario con rol <strong>Vendedor</strong> solo puede ver y gestionar los contratos donde él es el vendedor asignado; Administrador, Gerente y Cobranza ven todos los contratos.</p>
 
         <h4>Modalidades de seguimiento</h4>
         <p>Cada contrato debe definir cómo se hará el seguimiento de pagos:</p>
@@ -141,7 +206,7 @@ const helpSections = [
         <p>Al crear un contrato el calendario de pagos se genera <strong>automáticamente</strong>. No necesitas un paso extra.</p>
 
         <h4>Editar un contrato</h4>
-        <p>Solo administradores y gerentes pueden editar. Abre el detalle del contrato y click en <strong>"Editar"</strong> arriba a la derecha. Algunos campos como proyecto, unidad y comprador no se pueden modificar después de creado el contrato.</p>
+        <p>Solo Administrador y Gerente pueden editar. Abre el detalle del contrato y click en <strong>"Editar"</strong> arriba a la derecha. Algunos campos como proyecto, unidad y comprador no se pueden modificar después de creado el contrato.</p>
 
         <h4>Regeneración del calendario</h4>
         <p>Si cambias campos críticos (montos, modalidad, hitos, fechas clave), el sistema regenera el calendario automáticamente al guardar. <strong>Los pagos ya cobrados se preservan;</strong> solo se eliminan los pagos pendientes para crear el nuevo calendario.</p>
@@ -156,7 +221,7 @@ const helpSections = [
     content: (
       <>
         <h4>Acceso al módulo</h4>
-        <p>El módulo de Pagos requiere que selecciones un <strong>proyecto</strong> para mostrar sus contratos abiertos (con saldo pendiente).</p>
+        <p>El módulo de Pagos requiere que selecciones un <strong>proyecto</strong> para mostrar sus contratos abiertos (con saldo pendiente). Un Vendedor solo verá, en modo consulta, los pagos de sus propios contratos: puede revisar el estado de cuenta pero no registrar cobros. Administrador, Gerente y Cobranza pueden registrar pagos.</p>
 
         <h4>Visualización por contrato</h4>
         <p>Cada contrato aparece como una card colapsable que muestra: comprador, unidad, saldo total, progreso de cobranza y pagos vencidos. Click en la card para expandir y ver todos los pagos individuales.</p>
@@ -168,7 +233,7 @@ const helpSections = [
           <li>Captura el monto en USD. El sistema mostrará el equivalente MXN en vivo.</li>
           <li>Selecciona método de pago, captura referencia y notas si aplica.</li>
           <li>Adjunta comprobantes (transferencia, depósito, recibo).</li>
-          <li>Guarda. El pago queda registrado con su TC histórico.</li>
+          <li>Guarda. El pago queda registrado con su TC histórico y con la fecha de cobro que capturaste — esa fecha, no la de captura en el sistema, es la que usan los reportes y el dashboard.</li>
         </ol>
 
         <h4>Pagos parciales</h4>
@@ -203,9 +268,9 @@ const helpSections = [
 
         <h4>Flujo de cobro de hitos</h4>
         <ol>
-          <li><strong>Registrar el pago:</strong> el hito puede cobrarse en cualquier momento, total o parcialmente.</li>
+          <li><strong>Registrar el pago:</strong> el hito puede cobrarse en cualquier momento, total o parcialmente, sin necesidad de marcarlo como completado primero.</li>
           <li><strong>Marcar como completado:</strong> una vez que hay al menos un pago, el hito puede marcarse como completado. Se captura una fecha compromiso (editable después).</li>
-          <li><strong>Revertir:</strong> un hito marcado como completado puede revertirse a pendiente sin perder los pagos registrados.</li>
+          <li><strong>Revertir:</strong> Administrador y Gerente pueden revertir un hito completado a pendiente sin perder los pagos registrados.</li>
         </ol>
 
         <h4>Semáforo de hitos</h4>
@@ -223,32 +288,58 @@ const helpSections = [
     )
   },
   {
-    id: 'dashboard',
-    title: 'Dashboard',
-    icon: LayoutDashboard,
-    color: '#2563EB',
+    id: 'vendedores',
+    title: 'Vendedores y comisiones',
+    icon: Briefcase,
+    color: '#DB2777',
+    roles: ['admin', 'gerente', 'vendedor'],
     content: (
       <>
-        <h4>Vista general</h4>
-        <p>El dashboard es la pantalla principal del sistema. Muestra el pulso de tu operación de cobranza en tiempo real.</p>
+        <h4>Acceso al módulo</h4>
+        <p>Administrador y Gerente ven el listado completo de vendedores con su desempeño y estado de cuenta de comisiones. Un usuario con rol <strong>Vendedor</strong> no ve el listado, pero accede a su propio perfil desde <strong>"Mi Perfil"</strong> al fondo del menú. El rol Cobranza no tiene acceso a este módulo.</p>
 
-        <h4>Cards de alertas</h4>
-        <p>Cinco indicadores principales:</p>
-        <ul>
-          <li><strong>Pagos vencidos:</strong> pagos cuya fecha de vencimiento ya pasó.</li>
-          <li><strong>Vencen este mes:</strong> próximos cobros del mes en curso.</li>
-          <li><strong>Próximos 30 días:</strong> pagos por cobrar en los próximos 30 días.</li>
-          <li><strong>Listos para confirmar:</strong> hitos pagados que falta marcar como completados.</li>
-        </ul>
+        <h4>Perfil de un vendedor</h4>
+        <p>Muestra sus contratos activos y, por cada uno, la comisión asociada: porcentaje asignado, monto total de comisión, monto pagado y saldo pendiente.</p>
 
-        <h4>Cobranza por periodo</h4>
-        <p>Sección que muestra el total cobrado en un periodo configurable: hoy, esta semana, este mes, este año o un rango personalizado. Incluye total USD, equivalente MXN, número de movimientos y TC promedio del periodo.</p>
+        <h4>Asignar el porcentaje de comisión</h4>
+        <p>Solo <strong>Administrador</strong> puede asignar o cambiar el porcentaje de comisión de un contrato (desde el detalle del contrato). El porcentaje se calcula sobre el <strong>precio de venta total</strong> del contrato, no sobre lo efectivamente cobrado al comprador.</p>
 
-        <h4>Semáforo de hitos de obra</h4>
-        <p>Muestra el estado global de los hitos pendientes en toda la operación: cuántos están en rojo, amarillo y verde. Si hay hitos vencidos, lista los principales para acción inmediata.</p>
+        <h4>Bloqueo del porcentaje</h4>
+        <p>El porcentaje puede reasignarse cualquier número de veces mientras el contrato esté en estatus <em>promesa</em>, <em>definitivo</em> o <em>escriturado</em>. Se bloquea automáticamente al llegar a <em>entregado</em> o <em>cancelado</em>.</p>
 
-        <h4>Listas de pagos por vencer y vencidos</h4>
-        <p>En la parte inferior del dashboard, dos listas accionables con los próximos pagos por cobrar y los vencidos. Click en cualquier item para ir al pago correspondiente.</p>
+        <h4>Registrar un pago de comisión</h4>
+        <p>Administrador y Gerente pueden registrar abonos de comisión al vendedor desde el perfil del vendedor o el detalle del contrato. Esto no depende del estatus del contrato: puede pagarse comisión aunque la asignación del porcentaje ya esté bloqueada.</p>
+
+        <h4>Historial</h4>
+        <p>Cada cambio de porcentaje y cada pago de comisión queda registrado con fecha, monto y quién lo capturó, disponible para consulta en todo momento.</p>
+      </>
+    )
+  },
+  {
+    id: 'reportes',
+    title: 'Reportes',
+    icon: BarChart3,
+    color: '#0891B2',
+    roles: ['admin', 'gerente'],
+    content: (
+      <>
+        <h4>Acceso al módulo</h4>
+        <p>Reportes está disponible solo para Administrador y Gerente.</p>
+
+        <h4>Vendido vs. cobrado</h4>
+        <p>Gráfica combinada (barras + línea) que compara el monto vendido contra el monto efectivamente cobrado, con presets de periodo (este año, este mes o un rango personalizado) y agrupación por mes, semana o día.</p>
+
+        <h4>Adeudos a vendedores</h4>
+        <p>Lista el saldo pendiente de comisión por pagar a cada vendedor, calculado a partir de la información del módulo de Vendedores.</p>
+
+        <h4>Ranking de vendedores</h4>
+        <p>Compara a los vendedores por monto total vendido o por número de contratos, según el criterio que selecciones.</p>
+
+        <h4>Próximamente</h4>
+        <p>La pestaña "Próximamente" muestra un adelanto de funciones planeadas (proyección de cobranza, embudo del pipeline, cartera vencida por antigüedad, comparativo interanual, exportar/compartir reportes, resumen semanal automático). Aún no están disponibles.</p>
+
+        <h4>Sobre las fechas</h4>
+        <p>Todo lo que involucra pagos en estos reportes se agrupa por la <strong>fecha del tipo de cambio</strong> capturada en cada pago (la fecha real del cobro), no por la fecha en que el pago se registró en el sistema. Un pago capturado hoy pero con fecha de cobro de hace dos semanas aparecerá en el periodo de hace dos semanas.</p>
       </>
     )
   },
@@ -256,7 +347,7 @@ const helpSections = [
     id: 'doble-moneda',
     title: 'Doble moneda (USD / MXN)',
     icon: TrendingUp,
-    color: '#0596691A',
+    color: '#0EA5E9',
     content: (
       <>
         <h4>Filosofía del sistema</h4>
@@ -291,9 +382,10 @@ const helpSections = [
 
         <h4>Administrador</h4>
         <ul>
-          <li>Acceso total a todos los módulos.</li>
-          <li>Gestión de usuarios y configuración del sistema.</li>
-          <li>Crear, editar y eliminar contratos, proyectos, unidades.</li>
+          <li>Acceso total a todos los módulos, incluyendo Usuarios y Reportes.</li>
+          <li>Gestión de usuarios: crear, editar rol, activar/desactivar y eliminar.</li>
+          <li>Crear, editar y eliminar contratos, proyectos y unidades.</li>
+          <li>Único rol que puede asignar o cambiar el porcentaje de comisión de un contrato.</li>
           <li>Eliminar pagos y revertir hitos.</li>
         </ul>
 
@@ -301,25 +393,29 @@ const helpSections = [
         <ul>
           <li>Gestión completa de proyectos, unidades, contratos y compradores.</li>
           <li>Editar contratos (incluyendo regeneración de calendario).</li>
-          <li>Registro y consulta de pagos.</li>
+          <li>Registro y consulta de pagos, y registro de pagos de comisión a vendedores.</li>
+          <li>Acceso al listado completo de Vendedores y al módulo de Reportes.</li>
           <li>Revertir hitos completados.</li>
+          <li>No gestiona usuarios ni asigna porcentajes de comisión.</li>
         </ul>
 
         <h4>Vendedor</h4>
         <ul>
           <li>Consulta de proyectos y unidades.</li>
           <li>Gestión de compradores.</li>
-          <li>Visualización de contratos (sin edición).</li>
-          <li>Sin acceso al módulo de cobranza.</li>
+          <li>Creación y consulta de sus propios contratos (sin edición y sin ver contratos de otros vendedores).</li>
+          <li>Consulta de los pagos de sus propios contratos, sin poder registrarlos.</li>
+          <li>Consulta de su propio perfil de comisiones ("Mi Perfil").</li>
+          <li>Sin acceso a Dashboard, Usuarios, Reportes ni al listado general de Vendedores.</li>
         </ul>
 
         <h4>Cobranza</h4>
         <ul>
-          <li>Visualización de contratos.</li>
+          <li>Consulta de Dashboard, proyectos y contratos (todos, sin restricción de dueño).</li>
           <li>Registro de pagos y movimientos.</li>
           <li>Carga de comprobantes.</li>
           <li>Marcar hitos como completados.</li>
-          <li>Sin acceso a gestión de proyectos ni unidades.</li>
+          <li>Sin acceso a gestión de proyectos, unidades, Vendedores, Reportes ni Usuarios.</li>
         </ul>
       </>
     )
@@ -331,6 +427,9 @@ const helpSections = [
     color: '#6B7280',
     content: (
       <>
+        <h4>¿Por qué no veo todas las secciones de esta guía?</h4>
+        <p>El contenido de este Centro de Ayuda se ajusta a tu rol: solo se muestran las secciones de los módulos a los que tu cuenta tiene acceso. Si necesitas acceso a un módulo adicional, contacta al administrador del sistema.</p>
+
         <h4>¿Por qué no puedo cambiar el proyecto/unidad/comprador de un contrato existente?</h4>
         <p>Estos campos están bloqueados al editar porque modificarlos rompería la integridad referencial del sistema (los pagos ya registrados quedarían huérfanos, las unidades quedarían con estatus incorrecto). Si necesitas cambiar alguno de estos, cancela el contrato existente y crea uno nuevo.</p>
 
@@ -341,7 +440,7 @@ const helpSections = [
         <p>En el flujo actualizado de hitos, los pagos se registran libremente — ya no se requiere marcar el hito como completado antes. Si ves "Bloqueado", probablemente sea un pago de mensualidad de un contrato cancelado. Verifica el estado del contrato.</p>
 
         <h4>¿Cómo sé qué tipo de cambio usar al registrar un pago?</h4>
-        <p>El sistema sugiere automáticamente el último TC usado en el contrato o el TC inicial del contrato. Si tienes el TC oficial del día (DOF, Banxico, banco) cápturalo manualmente. Lo importante es que el TC refleje la fecha real del cobro.</p>
+        <p>El sistema sugiere automáticamente el último TC usado en el contrato o el TC inicial del contrato. Si tienes el TC oficial del día (DOF, Banxico, banco) cápturalo manualmente. Lo importante es que el TC refleje la fecha real del cobro, ya que esa es la fecha que usan el dashboard y los reportes.</p>
 
         <h4>¿Puedo eliminar un pago ya registrado?</h4>
         <p>Solo los administradores pueden eliminar pagos. Esta operación es definitiva, así que en su lugar se recomienda registrar un movimiento de ajuste con nota explicativa.</p>
@@ -354,6 +453,9 @@ const helpSections = [
 
         <h4>¿Cómo funciona el semáforo de hitos?</h4>
         <p>El semáforo se calcula con base en la fecha compromiso de entrega vs la fecha actual. Verde: más de 15 días. Amarillo: 15 días o menos. Rojo: la fecha compromiso ya pasó. Una vez que el hito se marca como completado, deja de mostrar semáforo y aparece como "Entregado".</p>
+
+        <h4>¿Quién puede asignar o cambiar el porcentaje de comisión de un vendedor?</h4>
+        <p>Solo el rol Administrador. Gerente puede registrar los pagos de esa comisión una vez asignada, pero no puede cambiar el porcentaje.</p>
 
         <h4>¿Quién puede ver los comprobantes de pago?</h4>
         <p>Cualquier usuario con acceso al módulo de pagos puede consultarlos. Para eliminarlos se requiere rol admin o gerente.</p>
@@ -395,6 +497,12 @@ const HelpSection = ({ section, isOpen, onToggle }) => {
 
 const Help = () => {
   const [openSections, setOpenSections] = useState({})
+  const { user } = useAuth()
+
+  const visibleSections = useMemo(
+    () => helpSections.filter(section => !section.roles || section.roles.includes(user?.role)),
+    [user?.role]
+  )
 
   const toggleSection = (id) => {
     setOpenSections(prev => ({ ...prev, [id]: !prev[id] }))
@@ -413,16 +521,19 @@ const Help = () => {
           <BookOpen size={18} style={{ color: 'var(--color-accent)' }} />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-text)' }}>¿Cómo usar esta guía?</p>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>¿Cómo usar esta guía?</p>
+            {user?.role && <RoleBadge role={user.role} size="xs" />}
+          </div>
           <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
-            Selecciona cualquier sección para ver instrucciones detalladas. Cada bloque puede expandirse y colapsarse de forma independiente. Si tienes dudas que no se respondan aquí, contacta a tu administrador del sistema.
+            Selecciona cualquier sección para ver instrucciones detalladas. Cada bloque puede expandirse y colapsarse de forma independiente. Las secciones que ves están filtradas según tu rol, para mostrarte solo lo relevante a los módulos a los que tienes acceso. Si tienes dudas que no se respondan aquí, contacta a tu administrador del sistema.
           </p>
         </div>
       </div>
 
       {/* Acordeón de secciones */}
       <div className="space-y-2.5">
-        {helpSections.map(section => (
+        {visibleSections.map(section => (
           <HelpSection
             key={section.id}
             section={section}

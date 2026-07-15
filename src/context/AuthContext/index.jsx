@@ -22,8 +22,7 @@ const AuthProvider = ({ children }) => {
             setUser(response.user)
             return response.user
         } catch (error) {
-            const message = error.response?.data?.message || 'Error al iniciar sesión'
-            throw new Error(message)
+            throw new Error(error.message || 'Error al iniciar sesión')
         }
     }
     const logout = ()=>{

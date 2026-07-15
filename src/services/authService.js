@@ -14,9 +14,7 @@ const authService ={
             return data
 
         } catch (error) {
-            const message =
-            error.response?.data?.message ||
-            'Error al registrar usuario'
+            const message = error.message || 'Error al registrar usuario'
             throw new Error(message)
             }
     },
@@ -30,9 +28,7 @@ const authService ={
             }
             return data.data
         } catch (error) {
-            const message =
-            error.response?.data?.message ||
-            'Error al intentar autenticar al usuario'
+            const message = error.message || 'Error al intentar autenticar al usuario'
             throw new Error(message)
         }
     },

@@ -8,12 +8,38 @@ import ProjectsPage from '@/Pages/Projects'
 import ProjectDetail from '@/Pages/Projects/ProjectDetail'
 import ContractsPage from '@/Pages/Contracts'
 import PaymentsPage from '@/Pages/Payments'
+import SellersPage from '@/Pages/Sellers'
+import SellerDetail from '@/Pages/Sellers/SellerDetail'
+import ReportsPage from '@/Pages/Reports'
 import Help from '@/Pages/Help'
 
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuth()
   return isAuthenticated ? children : <Navigate to="/login" />
+}
+
+// El vendedor no tiene acceso al dashboard
+const DashboardRoute = ({ children }) => {
+  const { user } = useAuth()
+  return user?.role !== 'vendedor' ? children : <Navigate to="/contratos" />
+}
+
+// El módulo de Usuarios es solo para admin
+const AdminOnlyRoute = ({ children }) => {
+  const { user } = useAuth()
+  return user?.role === 'admin' ? children : <Navigate to="/" />
+}
+
+// El módulo de Reportes es solo para admin y gerente
+const ReportsRoute = ({ children }) => {
+  const { user } = useAuth()
+  return ['admin', 'gerente'].includes(user?.role) ? children : <Navigate to="/" />
+}
+
+const DefaultRedirect = () => {
+  const { user } = useAuth()
+  return <Navigate to={user?.role === 'vendedor' ? '/contratos' : '/dashboard'} />
 }
 
 const ComingSoon = ({ label }) => (
@@ -36,17 +62,19 @@ const AppContent = () => {
           <ProtectedRoute>
             <MainLayout>
               <Routes>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/usuarios" element={<UsersPage />} />
+                <Route path="/dashboard" element={<DashboardRoute><Dashboard /></DashboardRoute>} />
+                <Route path="/usuarios" element={<AdminOnlyRoute><UsersPage /></AdminOnlyRoute>} />
                 <Route path="/proyectos" element={<ProjectsPage />} />
                 <Route path="/proyectos/:id" element={<ProjectDetail />} />
                 <Route path="/contratos" element={<ContractsPage />} />
                 <Route path="/pagos" element={<PaymentsPage />} />
+                <Route path="/vendedores" element={<SellersPage />} />
+                <Route path="/vendedores/:id" element={<SellerDetail />} />
                 <Route path="/entregas" element={<ComingSoon label="Entregas" />} />
-                <Route path="/reportes" element={<ComingSoon label="Reportes" />} />
+                <Route path="/reportes" element={<ReportsRoute><ReportsPage /></ReportsRoute>} />
                 <Route path="/ayuda" element={<Help />} />
 
-                <Route path="/" element={<Navigate to="/dashboard" />} />
+                <Route path="/" element={<DefaultRedirect />} />
               </Routes>
             </MainLayout>
           </ProtectedRoute>

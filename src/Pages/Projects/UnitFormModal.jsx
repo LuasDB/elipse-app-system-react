@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Pencil, Trash2 } from 'lucide-react'
 import { UNIT_TYPES, UNIT_STATUS, ORIENTATIONS } from '@/utils/projectConstants'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 const initialForm = {
   identifier: '', unitType: 'departamento', floor: '', orientation: '',
@@ -16,6 +17,8 @@ const UnitFormModal = ({ isOpen, onClose, onSubmit, onDelete, unit, loading }) =
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
   const isEditing = !!unit
+
+  useLockBodyScroll(isOpen)
 
   useEffect(() => {
     if (unit) {

@@ -5,8 +5,9 @@ let originalOverflow = null
 let originalPaddingRight = null
 
 /**
- * Bloquea el scroll del body usando solo overflow: hidden.
- * Más simple y no rompe el centrado de modales.
+ * Efecto compartido para cuando se abre un modal: bloquea el scroll del body
+ * (con overflow: hidden) y sube el contenido principal hasta arriba, para que
+ * el modal y sus primeros campos siempre se vean desde el inicio de la pantalla.
  */
 export const useLockBodyScroll = (isLocked) => {
   useEffect(() => {
@@ -22,6 +23,8 @@ export const useLockBodyScroll = (isLocked) => {
       if (scrollbarWidth > 0) {
         document.body.style.paddingRight = `${scrollbarWidth}px`
       }
+
+      document.querySelector('main')?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
     }
     lockCount++
 

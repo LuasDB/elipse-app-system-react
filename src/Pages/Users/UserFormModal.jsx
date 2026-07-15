@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, User, Mail, Phone, Shield, Eye, EyeOff } from 'lucide-react'
 import { ROLES } from '@/utils/roles'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 const initialForm = {
   name: '',
@@ -16,6 +17,8 @@ const UserFormModal = ({ isOpen, onClose, onSubmit, user, loading }) => {
   const [errors, setErrors] = useState({})
   const [showPassword, setShowPassword] = useState(false)
   const isEditing = !!user
+
+  useLockBodyScroll(isOpen)
 
   useEffect(() => {
     if (user) {

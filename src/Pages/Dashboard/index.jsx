@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import {
   Building2, FileText, DollarSign, Users,
   AlertTriangle, Clock, CheckCircle, TrendingUp,
-  ChevronRight, Calendar, Wallet, Hammer
+  ChevronRight, Calendar, Wallet, Hammer, Coins
 } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import paymentsService from '@/services/paymentsService'
+import commissionsService from '@/services/commissionsService'
 import { formatUSD, formatMXN, formatExchangeRate } from '@/utils/currency'
 
 import TrafficLightBadge from '@/components/common/TrafficLightBadge'
@@ -66,6 +67,10 @@ const Dashboard = () => {
   const [collections, setCollections] = useState(null)
   const [loadingCollections, setLoadingCollections] = useState(false)
 
+  // Comisiones pagadas (global, no depende del periodo seleccionado)
+  const [commissionsSummary, setCommissionsSummary] = useState(null)
+  const [loadingCommissions, setLoadingCommissions] = useState(true)
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -74,6 +79,18 @@ const Dashboard = () => {
       } catch (err) {
         console.error(err)
       } finally { setLoading(false) }
+    }
+    load()
+  }, [])
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await commissionsService.getSummary()
+        setCommissionsSummary(res.data)
+      } catch (err) {
+        console.error('Error al cargar el resumen de comisiones:', err)
+      } finally { setLoadingCommissions(false) }
     }
     load()
   }, [])
@@ -218,6 +235,10 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="p-4 rounded-lg" style={{ background: 'var(--color-surface)' }}>
+                <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: 'var(--color-text-muted)' }}>Total vendido</p>
+                <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--color-text)' }}>{formatUSD(collections?.totalSoldUSD || 0)}</p>
+              </div>
               <div className="p-4 rounded-lg" style={{ background: 'var(--color-success-bg)' }}>
                 <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: 'var(--color-text-muted)' }}>Total cobrado USD</p>
                 <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--color-success)' }}>{formatUSD(collections?.totalUSD || 0)}</p>
@@ -229,17 +250,43 @@ const Dashboard = () => {
                   <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>TC promedio: {formatExchangeRate(collections.averageExchangeRate)}</p>
                 )}
               </div>
-              <div className="p-4 rounded-lg" style={{ background: 'var(--color-surface)' }}>
+              <div className="p-4 rounded-lg" style={{ background: 'var(--color-accent-muted)' }}>
                 <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: 'var(--color-text-muted)' }}>Movimientos</p>
-                <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--color-text)' }}>{collections?.movementsCount || 0}</p>
+                <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--color-accent)' }}>{collections?.movementsCount || 0}</p>
                 <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>{collections?.paymentsCount || 0} pagos · {collections?.contractsCount || 0} contratos</p>
               </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Comisiones pagadas */}
+      <div className="rounded-xl border bg-white mb-8 overflow-hidden" style={{ borderColor: 'var(--color-border-light)', boxShadow: 'var(--shadow-sm)' }}>
+        <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
+          <Coins size={18} style={{ color: 'var(--color-accent)' }} />
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Comisiones pagadas</h3>
+        </div>
+        <div className="p-5">
+          {loadingCommissions ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-6 h-6 border-2 border-gray-200 border-t-[var(--color-primary)] rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="p-4 rounded-lg" style={{ background: 'var(--color-success-bg)' }}>
+                <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: 'var(--color-text-muted)' }}>Total pagado</p>
+                <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--color-success)' }}>{formatUSD(commissionsSummary?.totalPaid || 0)}</p>
+              </div>
+              <div className="p-4 rounded-lg" style={{ background: 'var(--color-warning-bg)' }}>
+                <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: 'var(--color-text-muted)' }}>Total pendiente</p>
+                <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--color-warning)' }}>{formatUSD(commissionsSummary?.totalPending || 0)}</p>
+              </div>
               <div className="p-4 rounded-lg" style={{ background: 'var(--color-accent-muted)' }}>
-                <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: 'var(--color-text-muted)' }}>Promedio diario</p>
+                <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: 'var(--color-text-muted)' }}>% pagado</p>
                 <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--color-accent)' }}>
-                  {collections?.movementsCount > 0 ? formatUSD((collections?.totalUSD || 0) / Math.max(1, collections.movementsCount)) : formatUSD(0)}
+                  {commissionsSummary?.totalAssigned > 0 ? Math.round((commissionsSummary.totalPaid / commissionsSummary.totalAssigned) * 100) : 0}%
                 </p>
-                <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>por movimiento</p>
+                <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>de {formatUSD(commissionsSummary?.totalAssigned || 0)} asignado</p>
               </div>
             </div>
           )}

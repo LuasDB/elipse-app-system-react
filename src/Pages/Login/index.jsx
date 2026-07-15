@@ -29,8 +29,8 @@ const Login = ()=>{
         setLoading(true)
 
         try {
-            await login(formData.email,formData.password)
-            navigate('/dashboard')
+            const loggedUser = await login(formData.email,formData.password)
+            navigate(loggedUser?.role === 'vendedor' ? '/contratos' : '/dashboard')
         } catch (error) {
             setError(error.message || 'Error al iniciar sesión')
         }finally{
@@ -65,13 +65,21 @@ const Login = ()=>{
           </p>
 
           {/* Form */}
-          <form className="space-y-5">
-            
+          <form className="space-y-5" onSubmit={handleSubmit}>
+
+            {error && (
+              <div className="flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+
             <div>
               <label className="text-sm text-gray-600">Email</label>
               <input
                 type="email"
                 name='email'
+                autoComplete="username"
                 className="w-full border-b border-gray-300 focus:border-black outline-none py-2"
                 onChange={handleChange}
               />
@@ -82,17 +90,19 @@ const Login = ()=>{
               <input
                 type="password"
                 name='password'
+                autoComplete="current-password"
                 className="w-full border-b border-gray-300 focus:border-black outline-none py-2"
                 onChange={handleChange}
-
               />
             </div>
 
             <button
-              className="w-full bg-black text-white py-3 mt-6 hover:bg-gray-800 transition"
-              onClick={handleSubmit}
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-black text-white py-3 mt-6 hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Iniciar sesión
+              <LogIn size={16} />
+              {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
             </button>
 
           </form>
