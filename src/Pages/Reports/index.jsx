@@ -6,6 +6,7 @@ import {
 import {
   Chart as ChartJS,
   CategoryScale, LinearScale, BarElement, LineElement, PointElement,
+  BarController, LineController,
   Tooltip, Legend
 } from 'chart.js'
 import { Chart } from 'react-chartjs-2'
@@ -14,7 +15,11 @@ import reportsService from '@/services/reportsService'
 import sellersService from '@/services/sellersService'
 import { formatUSD } from '@/utils/currency'
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend)
+ChartJS.register(
+  CategoryScale, LinearScale, BarElement, LineElement, PointElement,
+  BarController, LineController,
+  Tooltip, Legend
+)
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 
