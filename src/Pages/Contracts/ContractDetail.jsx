@@ -260,12 +260,20 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
   const handleRegisterCommissionPayment = async (formData) => {
     setRegisteringCommissionPaymentLoading(true)
     try {
-      await commissionsService.registerPayment(contract._id, {
+      const result = await commissionsService.registerPayment(contract._id, {
         amount: Number(formData.amount),
         paymentMethod: formData.paymentMethod,
         reference: formData.reference,
-        notes: formData.notes
+        notes: formData.notes,
+        paymentDate: formData.paymentDate
       })
+
+      if (formData.files && formData.files.length > 0) {
+        const fd = new FormData()
+        formData.files.forEach(f => fd.append('vouchers', f))
+        await commissionsService.uploadVouchers(contract._id, result.data.movement._id, fd)
+      }
+
       setToast({ message: 'Pago de comisión registrado', type: 'success' })
       setRegisteringCommissionPayment(false)
       await loadCommission()

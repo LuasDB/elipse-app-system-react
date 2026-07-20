@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Phone, FileText, DollarSign,
-  ChevronDown, ChevronUp, Lock
+  ChevronDown, ChevronUp, Lock, Paperclip, ExternalLink
 } from 'lucide-react'
+import { API_BASE_URL } from '@/api/axiosConfig'
 import RoleBadge from '@/components/common/RoleBadge'
 import StatusBadge from '@/components/common/StatusBadge'
 import DualPrice from '@/components/common/DualPrice'
@@ -55,12 +56,21 @@ const SellerDetail = () => {
     if (!registeringPaymentFor) return
     setRegisterLoading(true)
     try {
-      await commissionsService.registerPayment(registeringPaymentFor.contractId, {
+      const contractId = registeringPaymentFor.contractId
+      const result = await commissionsService.registerPayment(contractId, {
         amount: Number(formData.amount),
         paymentMethod: formData.paymentMethod,
         reference: formData.reference,
-        notes: formData.notes
+        notes: formData.notes,
+        paymentDate: formData.paymentDate
       })
+
+      if (formData.files && formData.files.length > 0) {
+        const fd = new FormData()
+        formData.files.forEach(f => fd.append('vouchers', f))
+        await commissionsService.uploadVouchers(contractId, result.data.movement._id, fd)
+      }
+
       setToast({ message: 'Pago de comisión registrado', type: 'success' })
       setRegisteringPaymentFor(null)
       await fetchData()
@@ -92,6 +102,7 @@ const SellerDetail = () => {
 
   const stats = seller.stats || {}
   const contracts = seller.contracts || []
+  const serverBase = API_BASE_URL ? API_BASE_URL.replace('/api/v1', '') : ''
 
   return (
     <div className="animate-fadeIn">
@@ -223,12 +234,33 @@ const SellerDetail = () => {
                           ) : (
                             <div className="space-y-1">
                               {commission.movements.map((m, mi) => (
-                                <div key={mi} className="flex items-center justify-between px-3 py-2 rounded-md bg-white text-xs">
-                                  <span style={{ color: 'var(--color-text-secondary)' }}>
-                                    {getMethodLabel(m.paymentMethod)} {m.reference ? `· ${m.reference}` : ''}
-                                  </span>
-                                  <span className="font-bold" style={{ color: 'var(--color-success)' }}>{formatUSD(m.amount)}</span>
-                                  <span style={{ color: 'var(--color-text-muted)' }}>{formatDateShort(m.registeredAt)}</span>
+                                <div key={m._id || mi} className="px-3 py-2 rounded-md bg-white text-xs">
+                                  <div className="flex items-center justify-between">
+                                    <span style={{ color: 'var(--color-text-secondary)' }}>
+                                      {getMethodLabel(m.paymentMethod)} {m.reference ? `· ${m.reference}` : ''}
+                                    </span>
+                                    <span className="font-bold" style={{ color: 'var(--color-success)' }}>{formatUSD(m.amount)}</span>
+                                    <span style={{ color: 'var(--color-text-muted)' }}>{formatDateShort(m.paymentDate || m.registeredAt)}</span>
+                                  </div>
+                                  {m.vouchers?.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mt-1.5 pt-1.5 border-t border-[var(--color-border-light)]">
+                                      {m.vouchers.map((v, vi) => (
+                                        <a
+                                          key={vi}
+                                          href={`${serverBase}/uploads/commissions/${commission.contractId}/${v.fileName}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[var(--color-surface)] transition-colors"
+                                          style={{ color: 'var(--color-info)' }}
+                                          title={v.originalName}
+                                        >
+                                          <Paperclip size={11} />
+                                          <span className="truncate max-w-[100px]">{v.originalName}</span>
+                                          <ExternalLink size={10} />
+                                        </a>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
