@@ -13,7 +13,7 @@ import { formatUSD, formatMXN, convertToMXN } from '@/utils/currency'
 
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'
 
-const ContractPaymentsCard = ({ contract, defaultOpen = false, onRegisterPayment }) => {
+const ContractPaymentsCard = ({ contract, defaultOpen = false, highlighted = false, onRegisterPayment }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
   const cStatus = getStatusConfig(CONTRACT_STATUS, contract.status)
@@ -25,7 +25,15 @@ const ContractPaymentsCard = ({ contract, defaultOpen = false, onRegisterPayment
   const payments = contract.payments || []
 
   return (
-    <div className="rounded-xl border bg-white overflow-hidden transition-all" style={{ borderColor: contract.overdueCount > 0 ? '#FCA5A5' : 'var(--color-border-light)', boxShadow: 'var(--shadow-sm)' }}>
+    <div
+      id={`contract-${contract._id}`}
+      className={`rounded-xl border bg-white overflow-hidden transition-all ${highlighted ? 'ring-2 ring-offset-2' : ''}`}
+      style={{
+        borderColor: highlighted ? 'var(--color-accent)' : (contract.overdueCount > 0 ? '#FCA5A5' : 'var(--color-border-light)'),
+        boxShadow: 'var(--shadow-sm)',
+        ...(highlighted ? { '--tw-ring-color': 'var(--color-accent)' } : {})
+      }}
+    >
       {/* Header de la card (siempre visible) */}
       <button
         onClick={() => setIsOpen(!isOpen)}

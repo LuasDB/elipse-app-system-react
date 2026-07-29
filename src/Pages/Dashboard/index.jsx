@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   Building2, FileText, DollarSign, Users,
   AlertTriangle, Clock, CheckCircle, TrendingUp,
-  ChevronRight, Calendar, Wallet, Hammer, Coins
+  Calendar, Wallet, Hammer, Coins
 } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
+import PaymentAlertModal from '@/components/common/PaymentAlertModal'
 import paymentsService from '@/services/paymentsService'
 import commissionsService from '@/services/commissionsService'
 import { formatUSD, formatMXN, formatExchangeRate } from '@/utils/currency'
@@ -14,7 +14,6 @@ import TrafficLightBadge from '@/components/common/TrafficLightBadge'
 import { MILESTONE_TRAFFIC } from '@/utils/contractConstants'
 
 const formatPrice = (n) => formatUSD(n)
-const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '—'
 const todayISO = () => new Date().toISOString().slice(0, 10)
 
 // Helpers para periodos
@@ -56,9 +55,13 @@ const PERIOD_PRESETS = [
 ]
 
 const Dashboard = () => {
-  const navigate = useNavigate()
   const [alerts, setAlerts] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  // Modal de detalle de alertas de pagos (vencidos / este mes / próximos 30 días)
+  const [alertModalType, setAlertModalType] = useState(null)
+
+  const openAlertModal = (type) => setAlertModalType(type)
 
   // Cobranza por periodo
   const [periodPreset, setPeriodPreset] = useState('month')
@@ -126,6 +129,7 @@ const Dashboard = () => {
 
   const cards = [
     {
+      type: 'overdue',
       label: 'Pagos vencidos',
       value: alerts?.overdue?.count || 0,
       sub: formatPrice(alerts?.overdue?.total),
@@ -135,6 +139,7 @@ const Dashboard = () => {
       urgent: (alerts?.overdue?.count || 0) > 0
     },
     {
+      type: 'dueThisMonth',
       label: 'Vencen este mes',
       value: alerts?.dueThisMonth?.count || 0,
       sub: formatPrice(alerts?.dueThisMonth?.total),
@@ -143,9 +148,10 @@ const Dashboard = () => {
       bg: 'var(--color-warning-bg)'
     },
     {
+      type: 'upcoming',
       label: 'Próximos 30 días',
       value: alerts?.upcoming?.count || 0,
-      sub: 'pagos por cobrar',
+      sub: formatPrice(alerts?.upcoming?.total),
       icon: Calendar,
       color: 'var(--color-info)',
       bg: 'var(--color-info-bg)'
@@ -170,8 +176,12 @@ const Dashboard = () => {
         {cards.map((c, i) => (
           <div
             key={i}
-            title={c.tooltip || c.label}
-            className={`p-5 rounded-xl border bg-white transition-all ${c.urgent ? 'ring-2 ring-red-200' : ''}`}
+            title={c.tooltip || (c.type ? `Ver detalle de ${c.label.toLowerCase()}` : c.label)}
+            onClick={c.type ? () => openAlertModal(c.type) : undefined}
+            role={c.type ? 'button' : undefined}
+            tabIndex={c.type ? 0 : undefined}
+            onKeyDown={c.type ? (e) => { if (e.key === 'Enter' || e.key === ' ') openAlertModal(c.type) } : undefined}
+            className={`p-5 rounded-xl border bg-white transition-all ${c.urgent ? 'ring-2 ring-red-200' : ''} ${c.type ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5' : ''}`}
             style={{ borderColor: c.urgent ? 'var(--color-danger)' : 'var(--color-border-light)', boxShadow: 'var(--shadow-sm)' }}
           >
             <div className="flex items-center justify-between mb-3">
@@ -351,71 +361,12 @@ const Dashboard = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Overdue payments */}
-        <div className="rounded-xl border bg-white overflow-hidden" style={{ borderColor: 'var(--color-border-light)', boxShadow: 'var(--shadow-sm)' }}>
-          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={16} style={{ color: 'var(--color-danger)' }} />
-              <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Pagos Vencidos</h3>
-            </div>
-            <button onClick={() => navigate('/pagos')} className="text-xs font-medium flex items-center gap-1 transition-colors hover:text-[var(--color-accent)]" style={{ color: 'var(--color-text-muted)' }}>
-              Ver todos <ChevronRight size={14} />
-            </button>
-          </div>
-          <div className="divide-y" style={{ borderColor: 'var(--color-border-light)' }}>
-            {!alerts?.overdue?.items?.length ? (
-              <div className="px-5 py-8 text-center">
-                <CheckCircle size={24} className="mx-auto mb-2" style={{ color: 'var(--color-success)' }} />
-                <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Sin pagos vencidos</p>
-              </div>
-            ) : alerts.overdue.items.slice(0, 6).map((p, i) => (
-              <div key={i} className="px-5 py-3 flex items-center justify-between hover:bg-[var(--color-surface)] transition-colors">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text)' }}>{p.buyerName}</p>
-                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{p.unitIdentifier} · {p.concept}</p>
-                </div>
-                <div className="text-right flex-shrink-0 ml-4">
-                  <p className="text-sm font-bold" style={{ color: 'var(--color-danger)' }}>{formatPrice(p.balance)}</p>
-                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>Venció {formatDate(p.dueDate)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Upcoming this month */}
-        <div className="rounded-xl border bg-white overflow-hidden" style={{ borderColor: 'var(--color-border-light)', boxShadow: 'var(--shadow-sm)' }}>
-          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
-            <div className="flex items-center gap-2">
-              <Clock size={16} style={{ color: 'var(--color-warning)' }} />
-              <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Por cobrar este mes</h3>
-            </div>
-            <button onClick={() => navigate('/pagos')} className="text-xs font-medium flex items-center gap-1 transition-colors hover:text-[var(--color-accent)]" style={{ color: 'var(--color-text-muted)' }}>
-              Ver todos <ChevronRight size={14} />
-            </button>
-          </div>
-          <div className="divide-y" style={{ borderColor: 'var(--color-border-light)' }}>
-            {!alerts?.dueThisMonth?.items?.length ? (
-              <div className="px-5 py-8 text-center">
-                <CheckCircle size={24} className="mx-auto mb-2" style={{ color: 'var(--color-success)' }} />
-                <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Sin pagos pendientes este mes</p>
-              </div>
-            ) : alerts.dueThisMonth.items.slice(0, 6).map((p, i) => (
-              <div key={i} className="px-5 py-3 flex items-center justify-between hover:bg-[var(--color-surface)] transition-colors">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text)' }}>{p.buyerName}</p>
-                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{p.unitIdentifier} · {p.concept}</p>
-                </div>
-                <div className="text-right flex-shrink-0 ml-4">
-                  <p className="text-sm font-bold" style={{ color: 'var(--color-warning)' }}>{formatPrice(p.balance)}</p>
-                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>Vence {formatDate(p.dueDate)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <PaymentAlertModal
+        isOpen={!!alertModalType}
+        onClose={() => setAlertModalType(null)}
+        type={alertModalType}
+        alerts={alerts}
+      />
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 const Modal = ({ isOpen, onClose, title, children, size = 'xl' }) => {
@@ -10,8 +11,12 @@ const Modal = ({ isOpen, onClose, title, children, size = 'xl' }) => {
         xl: 'max-w-5xl'
     }
 
-    return (
-        <div 
+    // Portal a document.body: algunas páginas envuelven su contenido en un
+    // contenedor con transform (p.ej. la animación "animate-fadeIn"), lo cual
+    // crea un containing block para position:fixed y rompe el overlay
+    // (queda anclado al alto del contenido en vez de al viewport).
+    return createPortal(
+        <div
             className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center px-2"
             onClick={onClose}
         >
@@ -27,8 +32,8 @@ const Modal = ({ isOpen, onClose, title, children, size = 'xl' }) => {
                 {/* HEADER */}
                 <div className="flex items-center justify-between px-4 py-3 border-b">
                     <h3 className="text-base sm:text-lg font-semibold">{title}</h3>
-                    <button 
-                        onClick={onClose} 
+                    <button
+                        onClick={onClose}
                         className="text-gray-400 hover:text-gray-600"
                     >
                         <X size={20} />
@@ -40,7 +45,8 @@ const Modal = ({ isOpen, onClose, title, children, size = 'xl' }) => {
                     {children}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     )
 }
 

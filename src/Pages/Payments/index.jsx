@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Building2, Search, ChevronDown, DollarSign, AlertCircle } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import RegisterPaymentModal from './RegisterPaymentModal'
@@ -9,8 +10,13 @@ import projectsService from '@/services/projectsService'
 import { formatUSD, formatMXN, convertToMXN } from '@/utils/currency'
 
 const Payments = () => {
+  // Deep link desde el Dashboard: ?project=<id>&contract=<id> abre el proyecto
+  // y resalta/expande el contrato correspondiente al pago que se dio click.
+  const [searchParams] = useSearchParams()
+  const targetContractId = searchParams.get('contract') || null
+
   const [projects, setProjects] = useState([])
-  const [selectedProject, setSelectedProject] = useState('')
+  const [selectedProject, setSelectedProject] = useState(searchParams.get('project') || '')
   const [contracts, setContracts] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -50,6 +56,14 @@ const Payments = () => {
   }, [selectedProject])
 
   useEffect(() => { fetchContracts() }, [fetchContracts])
+
+  // Al llegar desde el Dashboard con un contrato objetivo, hace scroll hasta su card
+  // una vez que los contratos terminaron de cargar.
+  useEffect(() => {
+    if (!targetContractId || loading || contracts.length === 0) return
+    const el = document.getElementById(`contract-${targetContractId}`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [targetContractId, loading, contracts])
 
   // Filtro por buscador (sobre los contratos cargados)
   const filteredContracts = contracts.filter(c => {
@@ -223,7 +237,8 @@ const Payments = () => {
                 <ContractPaymentsCard
                   key={c._id}
                   contract={c}
-                  defaultOpen={idx === 0 && filteredContracts.length <= 3}
+                  defaultOpen={c._id === targetContractId || (idx === 0 && filteredContracts.length <= 3)}
+                  highlighted={c._id === targetContractId}
                   onRegisterPayment={handleRegisterPayment}
                 />
               ))
