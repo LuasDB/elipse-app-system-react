@@ -68,7 +68,7 @@ const RegisterCommissionPaymentModal = ({ isOpen, onClose, onSubmit, commission,
         <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, #059669, #047857)' }}>
           <div>
             <h2 className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>Registrar Pago de Comisión</h2>
-            <p className="text-xs text-emerald-200 mt-0.5">{commission.contractNumber}</p>
+            <p className="text-xs text-emerald-200 mt-0.5">{commission.contractNumber}{commission.sellerName ? ` · ${commission.sellerName}` : ''}</p>
           </div>
           <button onClick={onClose} className="text-emerald-200 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"><X size={20} /></button>
         </div>
@@ -78,7 +78,7 @@ const RegisterCommissionPaymentModal = ({ isOpen, onClose, onSubmit, commission,
             <div className="grid grid-cols-3 gap-3 p-3 rounded-lg" style={{ background: 'var(--color-surface)' }}>
               <div className="text-center">
                 <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Comisión</p>
-                <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{formatUSD(commission.commissionAmount)}</p>
+                <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{formatUSD(commission.amount)}</p>
               </div>
               <div className="text-center">
                 <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Pagado</p>

@@ -22,6 +22,7 @@ import RegisterPaymentModal from '@/Pages/Payments/RegisterPaymentModal'
 import FileUploadZone from '@/components/common/FileUploadZone'
 import contractsService from '@/services/contractsService'
 import commissionsService from '@/services/commissionsService'
+import usersService from '@/services/usersService'
 import { getCommissionStatusConfig } from '@/utils/commissionConstants'
 import AssignCommissionModal from '@/components/common/AssignCommissionModal'
 import RegisterCommissionPaymentModal from '@/components/common/RegisterCommissionPaymentModal'
@@ -82,11 +83,12 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
   const canAssignCommission = user?.role === 'admin'
   const canRegisterCommissionPayment = ['admin', 'gerente'].includes(user?.role)
 
-  const [commission, setCommission] = useState(null)
+  const [commissions, setCommissions] = useState([])
   const [loadingCommission, setLoadingCommission] = useState(true)
+  const [allSellers, setAllSellers] = useState([])
   const [assigningCommission, setAssigningCommission] = useState(false)
   const [assigningCommissionLoading, setAssigningCommissionLoading] = useState(false)
-  const [registeringCommissionPayment, setRegisteringCommissionPayment] = useState(false)
+  const [registeringCommissionPaymentFor, setRegisteringCommissionPaymentFor] = useState(null)
   const [registeringCommissionPaymentLoading, setRegisteringCommissionPaymentLoading] = useState(false)
 
   const [payments, setPayments] = useState([])
@@ -145,9 +147,9 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
     try {
       setLoadingCommission(true)
       const res = await commissionsService.getByContract(contract._id)
-      setCommission(res.data || null)
+      setCommissions(res.data || [])
     } catch (err) {
-      console.error('Error al cargar la comisión:', err)
+      console.error('Error al cargar las comisiones:', err)
     } finally {
       setLoadingCommission(false)
     }
@@ -156,6 +158,13 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
   useEffect(() => {
     if (contract?._id) loadCommission()
   }, [contract?._id])
+
+  useEffect(() => {
+    if (!canAssignCommission) return
+    usersService.getAll({ role: 'vendedor' })
+      .then(res => setAllSellers(res.data || []))
+      .catch(err => console.error('Error al cargar vendedores:', err))
+  }, [canAssignCommission])
 
   if (!contract) return null
 
@@ -242,15 +251,43 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
     }
   }
 
-  const handleAssignCommission = async ({ percentage, notes }) => {
+  const handleAddSellerCommission = async ({ sellerId, amount, description }) => {
     setAssigningCommissionLoading(true)
     try {
-      await commissionsService.assign(contract._id, { percentage, notes })
-      setToast({ message: 'Comisión asignada correctamente', type: 'success' })
-      setAssigningCommission(false)
+      await commissionsService.addSeller(contract._id, { sellerId, amount, description })
+      setToast({ message: 'Vendedor agregado al contrato', type: 'success' })
       await loadCommission()
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Error al asignar la comisión'
+      const msg = err.response?.data?.message || err.message || 'Error al agregar el vendedor'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setAssigningCommissionLoading(false)
+    }
+  }
+
+  const handleUpdateSellerCommission = async (sellerId, { amount, description }) => {
+    setAssigningCommissionLoading(true)
+    try {
+      await commissionsService.updateSeller(contract._id, sellerId, { amount, description })
+      setToast({ message: 'Comisión actualizada', type: 'success' })
+      await loadCommission()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al actualizar la comisión'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setAssigningCommissionLoading(false)
+    }
+  }
+
+  const handleRemoveSellerCommission = async (sellerId) => {
+    if (!window.confirm('¿Quitar a este vendedor de la comisión del contrato?')) return
+    setAssigningCommissionLoading(true)
+    try {
+      await commissionsService.removeSeller(contract._id, sellerId)
+      setToast({ message: 'Vendedor quitado del contrato', type: 'success' })
+      await loadCommission()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al quitar al vendedor'
       setToast({ message: msg, type: 'error' })
     } finally {
       setAssigningCommissionLoading(false)
@@ -258,9 +295,11 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
   }
 
   const handleRegisterCommissionPayment = async (formData) => {
+    if (!registeringCommissionPaymentFor) return
     setRegisteringCommissionPaymentLoading(true)
     try {
-      const result = await commissionsService.registerPayment(contract._id, {
+      const sellerId = registeringCommissionPaymentFor.sellerId
+      const result = await commissionsService.registerPayment(contract._id, sellerId, {
         amount: Number(formData.amount),
         paymentMethod: formData.paymentMethod,
         reference: formData.reference,
@@ -271,11 +310,11 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
       if (formData.files && formData.files.length > 0) {
         const fd = new FormData()
         formData.files.forEach(f => fd.append('vouchers', f))
-        await commissionsService.uploadVouchers(contract._id, result.data.movement._id, fd)
+        await commissionsService.uploadVouchers(contract._id, sellerId, result.data.movement._id, fd)
       }
 
       setToast({ message: 'Pago de comisión registrado', type: 'success' })
-      setRegisteringCommissionPayment(false)
+      setRegisteringCommissionPaymentFor(null)
       await loadCommission()
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Error al registrar el pago de comisión'
@@ -339,14 +378,14 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
 
-            {canAssignCommission && contract.seller && !CLOSED_CONTRACT_STATUSES.includes(contract.status) && (
+            {canAssignCommission && !CLOSED_CONTRACT_STATUSES.includes(contract.status) && (
               <button
                 onClick={() => setAssigningCommission(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
-                title="Asignar comisión"
+                title="Gestionar comisiones"
               >
                 <Percent size={13} />
-                <span className="hidden sm:inline">Asignar comisión</span>
+                <span className="hidden sm:inline">Comisiones</span>
               </button>
             )}
 
@@ -405,56 +444,58 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
             </div>
           )}
 
-          {/* Comisión */}
-          {contract.seller && (
-            <div className="p-4 rounded-xl border" style={{ borderColor: 'var(--color-border-light)', background: 'var(--color-surface)' }}>
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-accent)' }}>Comisión</p>
-                {commission && canRegisterCommissionPayment && commission.balance > 0 && (
-                  <button
-                    onClick={() => setRegisteringCommissionPayment(true)}
-                    className="px-2.5 py-1 text-[11px] font-medium rounded-md text-white transition-colors hover:opacity-90"
-                    style={{ background: 'var(--color-primary)' }}
-                  >
-                    Registrar pago
-                  </button>
-                )}
-              </div>
+          {/* Comisiones */}
+          <div className="p-4 rounded-xl border" style={{ borderColor: 'var(--color-border-light)', background: 'var(--color-surface)' }}>
+            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--color-accent)' }}>Comisiones</p>
 
-              {loadingCommission ? (
-                <div className="flex items-center justify-center py-4">
-                  <div className="w-5 h-5 border-2 border-gray-200 border-t-[var(--color-primary)] rounded-full animate-spin" />
-                </div>
-              ) : !commission ? (
-                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Sin comisión asignada</p>
-              ) : (
-                <>
-                  <div className="grid grid-cols-4 gap-3 mb-2">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Porcentaje</p>
-                      <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{commission.percentage}%</p>
+            {loadingCommission ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="w-5 h-5 border-2 border-gray-200 border-t-[var(--color-primary)] rounded-full animate-spin" />
+              </div>
+            ) : commissions.length === 0 ? (
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Sin comisiones asignadas</p>
+            ) : (
+              <div className="space-y-3">
+                {commissions.map((c) => {
+                  const commStatus = getCommissionStatusConfig(c.status)
+                  return (
+                    <div key={c._id || c.sellerId} className="p-3 rounded-lg bg-white border" style={{ borderColor: 'var(--color-border-light)' }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{c.sellerName || 'Vendedor'}</p>
+                        <div className="flex items-center gap-2">
+                          <StatusBadge label={commStatus.label} color={commStatus.color} bg={commStatus.bg} size="xs" />
+                          {canRegisterCommissionPayment && c.balance > 0 && (
+                            <button
+                              onClick={() => setRegisteringCommissionPaymentFor(c)}
+                              className="px-2.5 py-1 text-[11px] font-medium rounded-md text-white transition-colors hover:opacity-90"
+                              style={{ background: 'var(--color-primary)' }}
+                            >
+                              Registrar pago
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {c.description && <p className="text-xs mb-2" style={{ color: 'var(--color-text-secondary)' }}>{c.description}</p>}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Monto</p>
+                          <DualPrice usd={c.amount} rate={contract.exchangeRate} size="sm" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Pagado</p>
+                          <DualPrice usd={c.paidAmount} rate={contract.exchangeRate} size="sm" color="var(--color-success)" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Saldo</p>
+                          <DualPrice usd={c.balance} rate={contract.exchangeRate} size="sm" color={c.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)'} />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Monto</p>
-                      <DualPrice usd={commission.commissionAmount} rate={contract.exchangeRate} size="sm" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Pagado</p>
-                      <DualPrice usd={commission.paidAmount} rate={contract.exchangeRate} size="sm" color="var(--color-success)" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Saldo</p>
-                      <DualPrice usd={commission.balance} rate={contract.exchangeRate} size="sm" color={commission.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)'} />
-                    </div>
-                  </div>
-                  {(() => {
-                    const commStatus = getCommissionStatusConfig(commission.status)
-                    return <StatusBadge label={commStatus.label} color={commStatus.color} bg={commStatus.bg} size="xs" />
-                  })()}
-                </>
-              )}
-            </div>
-          )}
+                  )
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Condiciones económicas */}
           <div className="p-4 rounded-xl border" style={{ borderColor: 'var(--color-border-light)', background: 'var(--color-surface)' }}>
@@ -798,22 +839,25 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
         </div>
       </div>
 
-      {/* Modal: asignar comisión */}
+      {/* Modal: gestionar comisiones */}
       <AssignCommissionModal
         isOpen={assigningCommission}
         onClose={() => setAssigningCommission(false)}
-        onConfirm={handleAssignCommission}
         contract={contract}
-        currentCommission={commission}
+        commissions={commissions}
+        availableSellers={allSellers.filter(s => !commissions.some(c => c.sellerId === s._id))}
+        onAdd={handleAddSellerCommission}
+        onUpdate={handleUpdateSellerCommission}
+        onRemove={handleRemoveSellerCommission}
         loading={assigningCommissionLoading}
       />
 
       {/* Modal: registrar pago de comisión */}
       <RegisterCommissionPaymentModal
-        isOpen={registeringCommissionPayment}
-        onClose={() => setRegisteringCommissionPayment(false)}
+        isOpen={!!registeringCommissionPaymentFor}
+        onClose={() => setRegisteringCommissionPaymentFor(null)}
         onSubmit={handleRegisterCommissionPayment}
-        commission={commission}
+        commission={registeringCommissionPaymentFor}
         loading={registeringCommissionPaymentLoading}
       />
 

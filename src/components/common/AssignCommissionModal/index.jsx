@@ -1,42 +1,69 @@
 import { useState, useEffect } from 'react'
 import useLockBodyScroll from '@/hooks/useLockBodyScroll'
-import { X, Percent } from 'lucide-react'
-import DualPrice from '@/components/common/DualPrice'
+import { X, Coins, Plus, Pencil, Trash2, Check, XCircle } from 'lucide-react'
+import { formatUSD } from '@/utils/currency'
+import { getCommissionStatusConfig } from '@/utils/commissionConstants'
+import StatusBadge from '@/components/common/StatusBadge'
 
-const AssignCommissionModal = ({ isOpen, onClose, onConfirm, contract, currentCommission, loading }) => {
-  const [percentage, setPercentage] = useState('')
-  const [notes, setNotes] = useState('')
+const emptyForm = { sellerId: '', amount: '', description: '' }
+
+const AssignCommissionModal = ({ isOpen, onClose, contract, commissions, availableSellers, onAdd, onUpdate, onRemove, loading }) => {
+  const [adding, setAdding] = useState(false)
+  const [addForm, setAddForm] = useState(emptyForm)
+  const [editingSellerId, setEditingSellerId] = useState(null)
+  const [editForm, setEditForm] = useState({ amount: '', description: '' })
   useLockBodyScroll(isOpen)
 
   useEffect(() => {
     if (isOpen) {
-      setPercentage(currentCommission?.percentage ?? '')
-      setNotes('')
+      setAdding(false)
+      setAddForm(emptyForm)
+      setEditingSellerId(null)
     }
-  }, [isOpen, currentCommission])
+  }, [isOpen])
 
   if (!isOpen || !contract) return null
 
-  const pct = Number(percentage) || 0
-  const previewAmount = (Number(contract.salePrice) || 0) * pct / 100
+  const list = commissions || []
+  const inputClass = "w-full px-3 py-2 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
 
-  const handleConfirm = () => {
-    onConfirm({ percentage: pct, notes: notes.trim() || null })
+  const startEdit = (c) => {
+    setEditingSellerId(c.sellerId)
+    setEditForm({ amount: c.amount, description: c.description || '' })
   }
 
-  const isValid = percentage !== '' && pct >= 0 && pct <= 100
+  const submitAdd = async () => {
+    const amount = Number(addForm.amount)
+    if (!addForm.sellerId || !amount || amount <= 0 || !addForm.description.trim()) return
+    await onAdd({ sellerId: addForm.sellerId, amount, description: addForm.description.trim() })
+    setAdding(false)
+    setAddForm(emptyForm)
+  }
+
+  const submitEdit = async (sellerId) => {
+    const amount = Number(editForm.amount)
+    if (!amount || amount <= 0 || !editForm.description.trim()) return
+    await onUpdate(sellerId, { amount, description: editForm.description.trim() })
+    setEditingSellerId(null)
+  }
+
+  const isAddValid = addForm.sellerId && Number(addForm.amount) > 0 && addForm.description.trim()
+  const isEditValid = Number(editForm.amount) > 0 && editForm.description.trim()
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-overlayIn" style={{ background: 'rgba(15, 23, 42, 0.55)' }}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md animate-scaleIn overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg animate-scaleIn overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="px-5 py-4 flex items-center justify-between" style={{
+        <div className="px-5 py-4 flex items-center justify-between flex-shrink-0" style={{
           background: 'linear-gradient(135deg, var(--color-accent), #B89248)',
           color: 'white'
         }}>
           <div className="flex items-center gap-2">
-            <Percent size={18} />
-            <h3 className="text-sm font-semibold">Asignar comisión</h3>
+            <Coins size={18} />
+            <div>
+              <h3 className="text-sm font-semibold">Comisiones del contrato</h3>
+              <p className="text-[11px] text-white/80">{contract.contractNumber}</p>
+            </div>
           </div>
           <button onClick={onClose} className="hover:bg-white/10 rounded-md p-1 transition-colors">
             <X size={16} />
@@ -44,80 +71,141 @@ const AssignCommissionModal = ({ isOpen, onClose, onConfirm, contract, currentCo
         </div>
 
         {/* Body */}
-        <div className="p-5 space-y-4">
-          {/* Info del contrato */}
-          <div className="p-3 rounded-lg" style={{ background: 'var(--color-surface)' }}>
-            <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: 'var(--color-text-muted)' }}>Contrato</p>
-            <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-text)' }}>{contract.contractNumber}</p>
-            <div className="flex items-center justify-between text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              <span>Vendedor: {contract.seller?.name || '—'}</span>
-              <span>Precio de venta: {contract.salePrice ? `$${Number(contract.salePrice).toLocaleString('en-US')}` : '$0'}</span>
+        <div className="p-5 space-y-3 overflow-y-auto flex-1">
+          {list.length === 0 && !adding && (
+            <p className="text-xs text-center py-4" style={{ color: 'var(--color-text-muted)' }}>Ningún vendedor tiene comisión asignada en este contrato</p>
+          )}
+
+          {list.map((c) => {
+            const status = getCommissionStatusConfig(c.status)
+            const isEditing = editingSellerId === c.sellerId
+            return (
+              <div key={c.sellerId} className="p-3 rounded-lg border" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface)' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{c.sellerName || 'Vendedor'}</p>
+                  <div className="flex items-center gap-1.5">
+                    <StatusBadge label={status.label} color={status.color} bg={status.bg} size="xs" />
+                    {!isEditing && (
+                      <>
+                        <button onClick={() => startEdit(c)} className="p-1 rounded-md hover:bg-black/5 transition-colors" title="Editar monto">
+                          <Pencil size={13} style={{ color: 'var(--color-text-secondary)' }} />
+                        </button>
+                        <button
+                          onClick={() => onRemove(c.sellerId)}
+                          disabled={c.paidAmount > 0}
+                          title={c.paidAmount > 0 ? 'No se puede quitar: ya tiene pagos registrados' : 'Quitar vendedor'}
+                          className="p-1 rounded-md hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 size={13} style={{ color: 'var(--color-danger)' }} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={editForm.amount}
+                      onChange={(e) => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                      placeholder="Monto (USD)"
+                      className={inputClass}
+                    />
+                    <textarea
+                      rows={2}
+                      value={editForm.description}
+                      onChange={(e) => setEditForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder="Descripción de la comisión"
+                      className={`${inputClass} resize-none`}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => setEditingSellerId(null)} className="px-2.5 py-1.5 text-xs rounded-lg border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+                        <XCircle size={13} className="inline mr-1" />Cancelar
+                      </button>
+                      <button
+                        onClick={() => submitEdit(c.sellerId)}
+                        disabled={loading || !isEditValid}
+                        className="px-2.5 py-1.5 text-xs rounded-lg text-white disabled:opacity-50"
+                        style={{ background: 'var(--color-accent)' }}
+                      >
+                        <Check size={13} className="inline mr-1" />Guardar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-lg font-bold mb-1" style={{ color: 'var(--color-text)' }}>{formatUSD(c.amount)}</p>
+                    <p className="text-xs mb-2" style={{ color: 'var(--color-text-secondary)' }}>{c.description}</p>
+                    <div className="flex items-center gap-4 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                      <span>Pagado: <strong style={{ color: 'var(--color-success)' }}>{formatUSD(c.paidAmount)}</strong></span>
+                      <span>Saldo: <strong style={{ color: c.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>{formatUSD(c.balance)}</strong></span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })}
+
+          {/* Agregar vendedor */}
+          {adding ? (
+            <div className="p-3 rounded-lg border border-dashed space-y-2" style={{ borderColor: 'var(--color-accent)' }}>
+              <select
+                value={addForm.sellerId}
+                onChange={(e) => setAddForm(f => ({ ...f, sellerId: e.target.value }))}
+                className={inputClass}
+              >
+                <option value="">Selecciona un vendedor</option>
+                {(availableSellers || []).map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+              </select>
+              <input
+                type="number" min="0" step="0.01"
+                value={addForm.amount}
+                onChange={(e) => setAddForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="Monto de comisión (USD)"
+                className={inputClass}
+              />
+              <textarea
+                rows={2}
+                value={addForm.description}
+                onChange={(e) => setAddForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Descripción (motivo, condiciones, etc.)"
+                className={`${inputClass} resize-none`}
+              />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => { setAdding(false); setAddForm(emptyForm) }} className="px-2.5 py-1.5 text-xs rounded-lg border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+                  Cancelar
+                </button>
+                <button
+                  onClick={submitAdd}
+                  disabled={loading || !isAddValid}
+                  className="px-2.5 py-1.5 text-xs font-semibold rounded-lg text-white disabled:opacity-50"
+                  style={{ background: 'var(--color-accent)' }}
+                >
+                  Agregar
+                </button>
+              </div>
             </div>
-          </div>
-
-          {/* Porcentaje */}
-          <div>
-            <label className="block text-[11px] font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-              Porcentaje de comisión (%) <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              value={percentage}
-              onChange={(e) => setPercentage(e.target.value)}
-              placeholder="Ej: 5"
-              className="w-full px-3 py-2 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
-              style={{ borderColor: 'var(--color-border)' }}
-            />
-          </div>
-
-          {/* Preview del monto */}
-          <div className="p-3 rounded-lg" style={{ background: 'var(--color-accent-muted)' }}>
-            <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: 'var(--color-text-muted)' }}>Monto de comisión estimado</p>
-            <DualPrice usd={previewAmount} rate={contract.exchangeRate} size="lg" />
-          </div>
-
-          {/* Notas */}
-          <div>
-            <label className="block text-[11px] font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-              Notas <span style={{ color: 'var(--color-text-muted)' }}>(opcional)</span>
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="Motivo del ajuste, condiciones especiales, etc."
-              className="w-full px-3 py-2 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 resize-none"
-              style={{ borderColor: 'var(--color-border)' }}
-            />
-          </div>
-
-          {currentCommission && (
-            <div className="p-2.5 rounded-lg text-[11px]" style={{ background: 'var(--color-info-bg)', color: 'var(--color-text-secondary)' }}>
-              Este contrato ya tiene una comisión asignada del {currentCommission.percentage}%. Al confirmar se actualizará y se conservará el historial anterior.
-            </div>
+          ) : (
+            <button
+              onClick={() => setAdding(true)}
+              disabled={!(availableSellers || []).length}
+              className="w-full py-2.5 text-xs font-semibold rounded-lg border border-dashed flex items-center justify-center gap-1.5 transition-colors hover:bg-[var(--color-accent-muted)] disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}
+            >
+              <Plus size={14} /> Agregar vendedor
+            </button>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 flex items-center justify-end gap-2" style={{ borderTop: '1px solid var(--color-border-light)', background: 'var(--color-surface)' }}>
+        <div className="px-5 py-3 flex items-center justify-end gap-2 flex-shrink-0" style={{ borderTop: '1px solid var(--color-border-light)', background: 'var(--color-surface)' }}>
           <button
             onClick={onClose}
-            disabled={loading}
-            className="px-4 py-2 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-xs font-medium rounded-lg border transition-colors"
             style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
           >
-            Cancelar
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={loading || !isValid}
-            className="px-4 py-2 text-xs font-semibold rounded-lg text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
-            style={{ background: 'var(--color-accent)' }}
-          >
-            {loading ? 'Guardando...' : (<><Percent size={13} /> Confirmar</>)}
+            Cerrar
           </button>
         </div>
       </div>

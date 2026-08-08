@@ -57,7 +57,8 @@ const SellerDetail = () => {
     setRegisterLoading(true)
     try {
       const contractId = registeringPaymentFor.contractId
-      const result = await commissionsService.registerPayment(contractId, {
+      const sellerId = registeringPaymentFor.sellerId
+      const result = await commissionsService.registerPayment(contractId, sellerId, {
         amount: Number(formData.amount),
         paymentMethod: formData.paymentMethod,
         reference: formData.reference,
@@ -68,7 +69,7 @@ const SellerDetail = () => {
       if (formData.files && formData.files.length > 0) {
         const fd = new FormData()
         formData.files.forEach(f => fd.append('vouchers', f))
-        await commissionsService.uploadVouchers(contractId, result.data.movement._id, fd)
+        await commissionsService.uploadVouchers(contractId, sellerId, result.data.movement._id, fd)
       }
 
       setToast({ message: 'Pago de comisión registrado', type: 'success' })
@@ -181,11 +182,11 @@ const SellerDetail = () => {
                     <div className="text-right w-28 flex-shrink-0">
                       <DualPrice usd={contract.salePrice} rate={contract.exchangeRate} size="sm" />
                     </div>
-                    <div className="text-right w-20 flex-shrink-0">
-                      <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{commission ? `${commission.percentage}%` : '—'}</p>
+                    <div className="text-right w-40 flex-shrink-0">
+                      {commission ? <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>{commission.description}</p> : null}
                     </div>
                     <div className="text-right w-28 flex-shrink-0">
-                      {commission ? <DualPrice usd={commission.commissionAmount} rate={contract.exchangeRate} size="sm" /> : <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Sin asignar</span>}
+                      {commission ? <DualPrice usd={commission.amount} rate={contract.exchangeRate} size="sm" /> : <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Sin asignar</span>}
                     </div>
                     <div className="w-24 flex-shrink-0">
                       {commission && <StatusBadge label={commStatus.label} color={commStatus.color} bg={commStatus.bg} size="xs" />}
@@ -204,7 +205,7 @@ const SellerDetail = () => {
                           <div className="grid grid-cols-3 gap-4 py-3">
                             <div>
                               <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Comisión total</p>
-                              <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{formatUSD(commission.commissionAmount)}</p>
+                              <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{formatUSD(commission.amount)}</p>
                             </div>
                             <div>
                               <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Pagado</p>
@@ -247,7 +248,7 @@ const SellerDetail = () => {
                                       {m.vouchers.map((v, vi) => (
                                         <a
                                           key={vi}
-                                          href={`${serverBase}/uploads/commissions/${commission.contractId}/${v.fileName}`}
+                                          href={`${serverBase}/uploads/commissions/${commission.contractId}/${commission.sellerId}/${v.fileName}`}
                                           target="_blank"
                                           rel="noopener noreferrer"
                                           className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[var(--color-surface)] transition-colors"
