@@ -68,7 +68,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
       try {
         const res = await unitsService.getByProject(form.projectId)
         const available = (res.data || []).filter(u =>
-          u.status === 'disponible' || u.status === 'apartada' ||
+          u.status === 'disponible' ||
           (isEditing && u._id === contract?.unitId)
         )
         setUnits(available)
