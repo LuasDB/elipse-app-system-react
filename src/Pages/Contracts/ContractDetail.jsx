@@ -97,6 +97,9 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
   const [editingCommissionMovementLoading, setEditingCommissionMovementLoading] = useState(false)
   const [deletingCommissionVoucher, setDeletingCommissionVoucher] = useState(null)
   const [deletingCommissionMovementId, setDeletingCommissionMovementId] = useState(null)
+  const [pendingRemoveSeller, setPendingRemoveSeller] = useState(null)
+  const [pendingDeleteMovement, setPendingDeleteMovement] = useState(null)
+  const [pendingRemoveFile, setPendingRemoveFile] = useState(null)
 
   const [payments, setPayments] = useState([])
   const [summary, setSummary] = useState(null)
@@ -286,12 +289,17 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
     }
   }
 
-  const handleRemoveSellerCommission = async (sellerId) => {
-    if (!window.confirm('¿Quitar a este vendedor de la comisión del contrato?')) return
+  const handleRemoveSellerCommission = (sellerId) => {
+    setPendingRemoveSeller(sellerId)
+  }
+
+  const confirmRemoveSellerCommission = async () => {
+    if (!pendingRemoveSeller) return
     setAssigningCommissionLoading(true)
     try {
-      await commissionsService.removeSeller(contract._id, sellerId)
+      await commissionsService.removeSeller(contract._id, pendingRemoveSeller)
       setToast({ message: 'Vendedor quitado del contrato', type: 'success' })
+      setPendingRemoveSeller(null)
       await loadCommission()
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Error al quitar al vendedor'
@@ -383,12 +391,18 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
     }
   }
 
-  const handleDeleteCommissionMovement = async (commission, movement) => {
-    if (!window.confirm('¿Eliminar este pago de comisión? Esta acción no se puede deshacer.')) return
+  const handleDeleteCommissionMovement = (commission, movement) => {
+    setPendingDeleteMovement({ commission, movement })
+  }
+
+  const confirmDeleteCommissionMovement = async () => {
+    if (!pendingDeleteMovement) return
+    const { commission, movement } = pendingDeleteMovement
     setDeletingCommissionMovementId(movement._id)
     try {
       await commissionsService.removeMovement(commission.contractId, commission.sellerId, movement._id)
       setToast({ message: 'Pago de comisión eliminado', type: 'success' })
+      setPendingDeleteMovement(null)
       await loadCommission()
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Error al eliminar el pago de comisión'
@@ -415,12 +429,17 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
     }
   }
 
-  const handleRemoveFile = async (fileName) => {
-    if (!window.confirm('¿Eliminar este archivo permanentemente?')) return
+  const handleRemoveFile = (fileName) => {
+    setPendingRemoveFile(fileName)
+  }
+
+  const confirmRemoveFile = async () => {
+    if (!pendingRemoveFile) return
     try {
-      await contractsService.removeFile(contract._id, fileName)
-      setContractFiles(prev => prev.filter(f => f.fileName !== fileName))
+      await contractsService.removeFile(contract._id, pendingRemoveFile)
+      setContractFiles(prev => prev.filter(f => f.fileName !== pendingRemoveFile))
       setToast({ message: 'Archivo eliminado', type: 'success' })
+      setPendingRemoveFile(null)
     } catch (err) {
       const msg = err.response?.data?.message || 'Error al eliminar archivo'
       setToast({ message: msg, type: 'error' })
@@ -1045,6 +1064,39 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
         message={`¿Confirmas revertir el hito "${uncompleteMilestone?.milestoneName || ''}" a pendiente? Solo es posible si no se han registrado pagos.`}
         confirmText="Revertir"
         variant="warning"
+      />
+
+      {/* Confirm: quitar vendedor de la comisión */}
+      <ConfirmDialog
+        isOpen={!!pendingRemoveSeller}
+        onClose={() => setPendingRemoveSeller(null)}
+        onConfirm={confirmRemoveSellerCommission}
+        title="Quitar vendedor"
+        message="¿Quitar a este vendedor de la comisión del contrato? Se perderá la asignación de comisión."
+        confirmText="Quitar"
+        variant="warning"
+        loading={assigningCommissionLoading}
+      />
+
+      {/* Confirm: eliminar pago de comisión */}
+      <ConfirmDialog
+        isOpen={!!pendingDeleteMovement}
+        onClose={() => setPendingDeleteMovement(null)}
+        onConfirm={confirmDeleteCommissionMovement}
+        title="Eliminar pago de comisión"
+        message="¿Eliminar este pago de comisión? Esta acción no se puede deshacer y ajustará el saldo de la comisión."
+        confirmText="Eliminar"
+        loading={deletingCommissionMovementId === pendingDeleteMovement?.movement?._id}
+      />
+
+      {/* Confirm: eliminar archivo del contrato */}
+      <ConfirmDialog
+        isOpen={!!pendingRemoveFile}
+        onClose={() => setPendingRemoveFile(null)}
+        onConfirm={confirmRemoveFile}
+        title="Eliminar archivo"
+        message="¿Eliminar este archivo permanentemente? Se borrará del servidor y no se podrá recuperar."
+        confirmText="Eliminar"
       />
 
       {/* Toast local */}

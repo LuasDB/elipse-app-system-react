@@ -4,6 +4,7 @@ import { X, DollarSign, CreditCard, Upload, File, Trash2, ExternalLink, Papercli
 import { PAYMENT_METHODS } from '@/utils/paymentConstants'
 import { API_BASE_URL } from '@/api/axiosConfig'
 import { convertToMXN, formatMXN, formatUSD } from '@/utils/currency'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const formatPrice = (n) => n ? `$${Number(n).toLocaleString('en-US')}` : '$0'
@@ -20,6 +21,7 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, can
   })
   const [errors, setErrors] = useState({})
   const [selectedFiles, setSelectedFiles] = useState([])
+  const [pendingDeleteVoucher, setPendingDeleteVoucher] = useState(null)
   useLockBodyScroll(isOpen)
   useEffect(() => {
     if (payment) {
@@ -207,7 +209,7 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, can
                           {canManageVouchers && (
                             <button
                               type="button"
-                              onClick={() => onDeleteVoucher?.(v.fileName)}
+                              onClick={() => setPendingDeleteVoucher(v.fileName)}
                               disabled={deletingVoucher === v.fileName}
                               className="p-1.5 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
                               title="Eliminar comprobante"
@@ -266,6 +268,15 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, can
           </form>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteVoucher}
+        onClose={() => setPendingDeleteVoucher(null)}
+        onConfirm={() => { onDeleteVoucher?.(pendingDeleteVoucher); setPendingDeleteVoucher(null) }}
+        title="Eliminar comprobante"
+        message="¿Eliminar este comprobante de pago? El archivo se borrará del servidor y no se podrá recuperar."
+        confirmText="Eliminar"
+      />
     </div>
   )
 }

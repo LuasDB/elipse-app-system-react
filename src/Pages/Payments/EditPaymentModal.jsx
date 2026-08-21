@@ -3,6 +3,7 @@ import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 import { X, DollarSign, Pencil, Upload, Trash2, Paperclip, File, ExternalLink } from 'lucide-react'
 import { PAYMENT_METHODS, PAYMENT_STATUS } from '@/utils/paymentConstants'
 import { API_BASE_URL } from '@/api/axiosConfig'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 
 const toDateInput = (d) => d ? new Date(d).toISOString().slice(0, 10) : ''
 const formatFileSize = (bytes) => {
@@ -18,6 +19,8 @@ const EditPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, onDelet
   })
   const [errors, setErrors] = useState({})
   const [selectedFiles, setSelectedFiles] = useState([])
+  const [pendingDeleteVoucher, setPendingDeleteVoucher] = useState(null)
+  const [pendingSubmit, setPendingSubmit] = useState(null)
   useLockBodyScroll(isOpen)
 
   useEffect(() => {
@@ -35,6 +38,8 @@ const EditPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, onDelet
     }
     setErrors({})
     setSelectedFiles([])
+    setPendingDeleteVoucher(null)
+    setPendingSubmit(null)
   }, [payment, isOpen])
 
   const handleChange = (e) => {
@@ -69,7 +74,7 @@ const EditPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, onDelet
     const expectedAmount = Number(form.expectedAmount)
     const paidAmount = Number(form.paidAmount)
     const balance = Math.max(expectedAmount - paidAmount, 0)
-    onSubmit({
+    setPendingSubmit({
       concept: form.concept.trim(),
       expectedAmount,
       paidAmount,
@@ -203,7 +208,7 @@ const EditPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, onDelet
                           </a>
                           <button
                             type="button"
-                            onClick={() => onDeleteVoucher?.(v.fileName)}
+                            onClick={() => setPendingDeleteVoucher(v.fileName)}
                             disabled={deletingVoucher === v.fileName}
                             className="p-1.5 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
                             title="Eliminar comprobante"
@@ -260,6 +265,27 @@ const EditPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, onDelet
           </form>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteVoucher}
+        onClose={() => setPendingDeleteVoucher(null)}
+        onConfirm={() => { onDeleteVoucher?.(pendingDeleteVoucher); setPendingDeleteVoucher(null) }}
+        title="Eliminar comprobante"
+        message="¿Eliminar este comprobante de pago? El archivo se borrará del servidor y no se podrá recuperar."
+        confirmText="Eliminar"
+      />
+
+      <ConfirmDialog
+        isOpen={!!pendingSubmit}
+        onClose={() => setPendingSubmit(null)}
+        onConfirm={() => { onSubmit(pendingSubmit); setPendingSubmit(null) }}
+        title="Confirmar cambios del pago"
+        message="¿Confirmas guardar estos cambios? Se modificarán los montos/estado del pago y quedará registrado en el historial de auditoría."
+        confirmText="Guardar cambios"
+        loadingText="Guardando..."
+        loading={loading}
+        variant="warning"
+      />
     </div>
   )
 }

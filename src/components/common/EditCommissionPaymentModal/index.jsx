@@ -4,6 +4,7 @@ import { X, DollarSign, CreditCard, Calendar, Upload, Trash2, Paperclip, File, E
 import { PAYMENT_METHODS } from '@/utils/paymentConstants'
 import { API_BASE_URL } from '@/api/axiosConfig'
 import { formatUSD } from '@/utils/currency'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 
 const toDateInput = (d) => d ? new Date(d).toISOString().slice(0, 10) : ''
 const formatFileSize = (bytes) => {
@@ -16,6 +17,8 @@ const EditCommissionPaymentModal = ({ isOpen, onClose, onSubmit, commission, mov
   const [form, setForm] = useState({ amount: '', paymentMethod: 'transferencia', reference: '', notes: '', paymentDate: toDateInput(new Date()) })
   const [errors, setErrors] = useState({})
   const [selectedFiles, setSelectedFiles] = useState([])
+  const [pendingDeleteVoucher, setPendingDeleteVoucher] = useState(null)
+  const [pendingSubmit, setPendingSubmit] = useState(null)
   useLockBodyScroll(isOpen)
 
   useEffect(() => {
@@ -30,6 +33,8 @@ const EditCommissionPaymentModal = ({ isOpen, onClose, onSubmit, commission, mov
     }
     setErrors({})
     setSelectedFiles([])
+    setPendingDeleteVoucher(null)
+    setPendingSubmit(null)
   }, [movement, isOpen])
 
   const handleChange = (e) => {
@@ -63,7 +68,7 @@ const EditCommissionPaymentModal = ({ isOpen, onClose, onSubmit, commission, mov
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!validate()) return
-    onSubmit({ ...form, files: selectedFiles })
+    setPendingSubmit({ ...form, files: selectedFiles })
   }
 
   if (!isOpen || !movement || !commission) return null
@@ -183,7 +188,7 @@ const EditCommissionPaymentModal = ({ isOpen, onClose, onSubmit, commission, mov
                           </a>
                           <button
                             type="button"
-                            onClick={() => onDeleteVoucher?.(v.fileName)}
+                            onClick={() => setPendingDeleteVoucher(v.fileName)}
                             disabled={deletingVoucher === v.fileName}
                             className="p-1.5 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
                             title="Eliminar comprobante"
@@ -240,6 +245,27 @@ const EditCommissionPaymentModal = ({ isOpen, onClose, onSubmit, commission, mov
           </form>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteVoucher}
+        onClose={() => setPendingDeleteVoucher(null)}
+        onConfirm={() => { onDeleteVoucher?.(pendingDeleteVoucher); setPendingDeleteVoucher(null) }}
+        title="Eliminar comprobante"
+        message="¿Eliminar este comprobante de pago de comisión? El archivo se borrará del servidor y no se podrá recuperar."
+        confirmText="Eliminar"
+      />
+
+      <ConfirmDialog
+        isOpen={!!pendingSubmit}
+        onClose={() => setPendingSubmit(null)}
+        onConfirm={() => { onSubmit(pendingSubmit); setPendingSubmit(null) }}
+        title="Confirmar cambios del pago de comisión"
+        message="¿Confirmas guardar estos cambios? Se modificará el monto/saldo de la comisión y quedará registrado en el historial de auditoría."
+        confirmText="Guardar cambios"
+        loadingText="Guardando..."
+        loading={loading}
+        variant="warning"
+      />
     </div>
   )
 }

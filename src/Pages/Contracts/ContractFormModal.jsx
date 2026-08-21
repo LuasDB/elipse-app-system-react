@@ -9,6 +9,7 @@ import buyersService from '@/services/buyersService'
 import usersService from '@/services/usersService'
 import BuyerFormModal from './BuyerFormModal'
 import FileUploadZone from '@/components/common/FileUploadZone'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 
@@ -29,6 +30,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
   const [pendingFiles, setPendingFiles] = useState([])
+  const [confirmingCriticalSubmit, setConfirmingCriticalSubmit] = useState(false)
   const isEditing = !!contract
 
   // Lookups
@@ -227,14 +229,11 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
     if (!validate()) return
 
     // Confirmación extra si hay cambios críticos
-    if (criticalChanges.length > 0) {
-      const confirmed = window.confirm(
-        `Vas a modificar campos críticos: ${criticalChanges.join(', ')}.\n\n` +
-        `Esto regenerará el calendario de pagos (los pagos cobrados se conservan).\n\n` +
-        `¿Deseas continuar?`
-      )
-      if (!confirmed) return
+    if (criticalChanges.length > 0 && !confirmingCriticalSubmit) {
+      setConfirmingCriticalSubmit(true)
+      return
     }
+    setConfirmingCriticalSubmit(false)
 
     const payload = { ...form }
 
@@ -753,6 +752,18 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
       onSubmit={handleCreateBuyer}
       buyer={null}
       loading={buyerLoading}
+    />
+
+    {/* Confirmación de cambios críticos */}
+    <ConfirmDialog
+      isOpen={confirmingCriticalSubmit}
+      onClose={() => setConfirmingCriticalSubmit(false)}
+      onConfirm={handleSubmit}
+      title="Confirmar cambios críticos"
+      message={`Vas a modificar campos críticos: ${criticalChanges.join(', ')}. Esto regenerará el calendario de pagos (los pagos ya cobrados se conservan como histórico, los no cobrados se eliminarán). ¿Deseas continuar?`}
+      confirmText="Sí, continuar"
+      loading={loading}
+      variant="warning"
     />
     </>
   )

@@ -12,6 +12,7 @@ import DualPrice from '@/components/common/DualPrice'
 import Toast from '@/components/common/Toast'
 import RegisterCommissionPaymentModal from '@/components/common/RegisterCommissionPaymentModal'
 import EditCommissionPaymentModal from '@/components/common/EditCommissionPaymentModal'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 import EditSellerModal from './EditSellerModal'
 import sellersService from '@/services/sellersService'
 import commissionsService from '@/services/commissionsService'
@@ -49,6 +50,8 @@ const SellerDetail = () => {
   const [attachmentsLoading, setAttachmentsLoading] = useState(true)
   const [uploadingAttachments, setUploadingAttachments] = useState(false)
   const [deletingAttachmentId, setDeletingAttachmentId] = useState(null)
+  const [pendingDeleteAttachment, setPendingDeleteAttachment] = useState(null)
+  const [pendingDeleteMovement, setPendingDeleteMovement] = useState(null)
 
   const forbidden = user?.role === 'vendedor' && user?._id !== id
   const canRegisterCommissionPayment = ['admin', 'gerente'].includes(user?.role)
@@ -119,12 +122,15 @@ const SellerDetail = () => {
     }
   }
 
-  const handleDeleteAttachment = async (attachmentId) => {
+  const confirmDeleteAttachment = async () => {
+    if (!pendingDeleteAttachment) return
+    const attachmentId = pendingDeleteAttachment._id
     setDeletingAttachmentId(attachmentId)
     try {
       await sellersService.deleteAttachment(id, attachmentId)
       setAttachments(prev => prev.filter(a => a._id !== attachmentId))
       setToast({ message: 'Adjunto eliminado', type: 'success' })
+      setPendingDeleteAttachment(null)
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Error al eliminar el adjunto'
       setToast({ message: msg, type: 'error' })
@@ -216,12 +222,18 @@ const SellerDetail = () => {
     }
   }
 
-  const handleDeleteMovement = async (commission, movement) => {
-    if (!window.confirm('¿Eliminar este pago de comisión? Esta acción no se puede deshacer.')) return
+  const handleDeleteMovement = (commission, movement) => {
+    setPendingDeleteMovement({ commission, movement })
+  }
+
+  const confirmDeleteMovement = async () => {
+    if (!pendingDeleteMovement) return
+    const { commission, movement } = pendingDeleteMovement
     setDeletingMovementId(movement._id)
     try {
       await commissionsService.removeMovement(commission.contractId, commission.sellerId, movement._id)
       setToast({ message: 'Pago de comisión eliminado', type: 'success' })
+      setPendingDeleteMovement(null)
       await fetchData()
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Error al eliminar el pago de comisión'
@@ -355,7 +367,7 @@ const SellerDetail = () => {
                   </a>
                   {canDeleteAttachments && (
                     <button
-                      onClick={() => handleDeleteAttachment(a._id)}
+                      onClick={() => setPendingDeleteAttachment(a)}
                       disabled={deletingAttachmentId === a._id}
                       className="p-1.5 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
                       title="Eliminar adjunto"
@@ -546,6 +558,26 @@ const SellerDetail = () => {
         onSubmit={handleEditSeller}
         seller={seller}
         loading={editLoading}
+      />
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteAttachment}
+        onClose={() => setPendingDeleteAttachment(null)}
+        onConfirm={confirmDeleteAttachment}
+        title="Eliminar adjunto"
+        message={`¿Eliminar el documento "${pendingDeleteAttachment?.filename || ''}"? El archivo se borrará del servidor y no se podrá recuperar.`}
+        confirmText="Eliminar"
+        loading={deletingAttachmentId === pendingDeleteAttachment?._id}
+      />
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteMovement}
+        onClose={() => setPendingDeleteMovement(null)}
+        onConfirm={confirmDeleteMovement}
+        title="Eliminar pago de comisión"
+        message="¿Eliminar este pago de comisión? Esta acción no se puede deshacer y ajustará el saldo de la comisión."
+        confirmText="Eliminar"
+        loading={deletingMovementId === pendingDeleteMovement?.movement?._id}
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
