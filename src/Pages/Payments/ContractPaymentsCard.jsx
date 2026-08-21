@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   ChevronDown, ChevronUp, User, Home, DollarSign, CheckCircle, Clock,
-  AlertTriangle, Hammer, Lock, Paperclip, CheckCircle2, Calendar
+  AlertTriangle, Hammer, Lock, Paperclip, CheckCircle2, Calendar, Pencil
 } from 'lucide-react'
 import StatusBadge from '@/components/common/StatusBadge'
 import DualPrice from '@/components/common/DualPrice'
@@ -13,7 +13,7 @@ import { formatUSD, formatMXN, convertToMXN } from '@/utils/currency'
 
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'
 
-const ContractPaymentsCard = ({ contract, defaultOpen = false, highlighted = false, onRegisterPayment }) => {
+const ContractPaymentsCard = ({ contract, defaultOpen = false, highlighted = false, onRegisterPayment, onEditPayment, canEditPayments = false }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
   const cStatus = getStatusConfig(CONTRACT_STATUS, contract.status)
@@ -172,16 +172,28 @@ const ContractPaymentsCard = ({ contract, defaultOpen = false, highlighted = fal
                       <td className="px-4 py-2.5 text-xs font-semibold" style={{ color: p.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>{formatUSD(p.balance)}</td>
                       <td className="px-4 py-2.5"><StatusBadge label={pStatus.label} color={pStatus.color} bg={pStatus.bg} size="xs" /></td>
                       <td className="px-4 py-2.5">
-                        {!isPaid && (
-                          <button
-                            onClick={() => onRegisterPayment(p, contract)}
-                            className="px-2.5 py-1 text-[11px] font-medium rounded-md text-white transition-all hover:shadow-sm"
-                            style={{ background: 'var(--color-success)' }}
-                          >
-                            Registrar
-                          </button>
-                        )}
-                        {isPaid && <span className="text-[11px] font-medium" style={{ color: 'var(--color-success)' }}>✓</span>}
+                        <div className="flex items-center gap-1.5">
+                          {!isPaid && (
+                            <button
+                              onClick={() => onRegisterPayment(p, contract)}
+                              className="px-2.5 py-1 text-[11px] font-medium rounded-md text-white transition-all hover:shadow-sm"
+                              style={{ background: 'var(--color-success)' }}
+                            >
+                              Registrar
+                            </button>
+                          )}
+                          {isPaid && <span className="text-[11px] font-medium" style={{ color: 'var(--color-success)' }}>✓</span>}
+                          {canEditPayments && (
+                            <button
+                              onClick={() => onEditPayment(p, contract)}
+                              title="Editar pago"
+                              className="p-1 rounded-md transition-colors hover:bg-[var(--color-surface)]"
+                              style={{ color: 'var(--color-text-muted)' }}
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )

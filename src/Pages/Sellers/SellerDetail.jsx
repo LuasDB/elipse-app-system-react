@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Phone, FileText, DollarSign,
-  ChevronDown, ChevronUp, Lock, Paperclip, ExternalLink
+  ChevronDown, ChevronUp, Lock, Paperclip, ExternalLink,
+  Pencil, Upload, Trash2, File
 } from 'lucide-react'
 import { API_BASE_URL } from '@/api/axiosConfig'
 import RoleBadge from '@/components/common/RoleBadge'
@@ -10,8 +11,11 @@ import StatusBadge from '@/components/common/StatusBadge'
 import DualPrice from '@/components/common/DualPrice'
 import Toast from '@/components/common/Toast'
 import RegisterCommissionPaymentModal from '@/components/common/RegisterCommissionPaymentModal'
+import EditCommissionPaymentModal from '@/components/common/EditCommissionPaymentModal'
+import EditSellerModal from './EditSellerModal'
 import sellersService from '@/services/sellersService'
 import commissionsService from '@/services/commissionsService'
+import usersService from '@/services/usersService'
 import { useAuth } from '@/context/AuthContext'
 import { getStatusConfig } from '@/utils/projectConstants'
 import { CONTRACT_STATUS } from '@/utils/contractConstants'
@@ -32,10 +36,26 @@ const SellerDetail = () => {
   const [expandedContract, setExpandedContract] = useState(null)
   const [registeringPaymentFor, setRegisteringPaymentFor] = useState(null)
   const [registerLoading, setRegisterLoading] = useState(false)
+  const [editingMovement, setEditingMovement] = useState(null)
+  const [editMovementLoading, setEditMovementLoading] = useState(false)
+  const [deletingMovementVoucher, setDeletingMovementVoucher] = useState(null)
+  const [deletingMovementId, setDeletingMovementId] = useState(null)
   const [toast, setToast] = useState(null)
+
+  const [editOpen, setEditOpen] = useState(false)
+  const [editLoading, setEditLoading] = useState(false)
+
+  const [attachments, setAttachments] = useState([])
+  const [attachmentsLoading, setAttachmentsLoading] = useState(true)
+  const [uploadingAttachments, setUploadingAttachments] = useState(false)
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState(null)
 
   const forbidden = user?.role === 'vendedor' && user?._id !== id
   const canRegisterCommissionPayment = ['admin', 'gerente'].includes(user?.role)
+  const canEditCommissionPayment = user?.role === 'admin'
+  const canEditSeller = user?.role === 'admin'
+  const canUploadAttachments = ['admin', 'gerente'].includes(user?.role)
+  const canDeleteAttachments = user?.role === 'admin'
 
   const fetchData = useCallback(async () => {
     if (forbidden) { setLoading(false); return }
@@ -51,6 +71,67 @@ const SellerDetail = () => {
   }, [id, forbidden])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  const fetchAttachments = useCallback(async () => {
+    if (forbidden) { setAttachmentsLoading(false); return }
+    try {
+      setAttachmentsLoading(true)
+      const res = await sellersService.getAttachments(id)
+      setAttachments(res.data || [])
+    } catch {
+      // No se bloquea la vista si falla la carga de adjuntos
+    } finally {
+      setAttachmentsLoading(false)
+    }
+  }, [id, forbidden])
+
+  useEffect(() => { fetchAttachments() }, [fetchAttachments])
+
+  const handleEditSeller = async (formData) => {
+    setEditLoading(true)
+    try {
+      await usersService.update(id, formData)
+      setToast({ message: 'Datos del vendedor actualizados', type: 'success' })
+      setEditOpen(false)
+      await fetchData()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al editar el vendedor'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  const handleUploadAttachments = async (e) => {
+    const files = Array.from(e.target.files || [])
+    e.target.value = ''
+    if (files.length === 0) return
+    setUploadingAttachments(true)
+    try {
+      await sellersService.uploadAttachments(id, files)
+      setToast({ message: 'Adjunto(s) subido(s) correctamente', type: 'success' })
+      await fetchAttachments()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al subir el adjunto'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setUploadingAttachments(false)
+    }
+  }
+
+  const handleDeleteAttachment = async (attachmentId) => {
+    setDeletingAttachmentId(attachmentId)
+    try {
+      await sellersService.deleteAttachment(id, attachmentId)
+      setAttachments(prev => prev.filter(a => a._id !== attachmentId))
+      setToast({ message: 'Adjunto eliminado', type: 'success' })
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al eliminar el adjunto'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setDeletingAttachmentId(null)
+    }
+  }
 
   const handleRegisterPayment = async (formData) => {
     if (!registeringPaymentFor) return
@@ -80,6 +161,73 @@ const SellerDetail = () => {
       setToast({ message: msg, type: 'error' })
     } finally {
       setRegisterLoading(false)
+    }
+  }
+
+  const handleEditMovement = (commission, movement) => {
+    setEditingMovement({ commission, movement })
+  }
+
+  const handleSubmitEditMovement = async (formData) => {
+    if (!editingMovement) return
+    const { commission, movement } = editingMovement
+    setEditMovementLoading(true)
+    try {
+      const { files, ...updates } = formData
+      await commissionsService.updateMovement(commission.contractId, commission.sellerId, movement._id, {
+        amount: Number(updates.amount),
+        paymentMethod: updates.paymentMethod,
+        reference: updates.reference,
+        notes: updates.notes,
+        paymentDate: updates.paymentDate
+      })
+
+      if (files && files.length > 0) {
+        const fd = new FormData()
+        files.forEach(f => fd.append('vouchers', f))
+        await commissionsService.uploadVouchers(commission.contractId, commission.sellerId, movement._id, fd)
+      }
+
+      setToast({ message: 'Pago de comisión actualizado', type: 'success' })
+      setEditingMovement(null)
+      await fetchData()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al actualizar el pago de comisión'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setEditMovementLoading(false)
+    }
+  }
+
+  const handleDeleteMovementVoucher = async (fileName) => {
+    if (!editingMovement) return
+    const { commission, movement } = editingMovement
+    setDeletingMovementVoucher(fileName)
+    try {
+      await commissionsService.removeVoucher(commission.contractId, commission.sellerId, movement._id, fileName)
+      setEditingMovement(prev => prev ? { ...prev, movement: { ...prev.movement, vouchers: (prev.movement.vouchers || []).filter(v => v.fileName !== fileName) } } : prev)
+      setToast({ message: 'Comprobante eliminado', type: 'success' })
+      await fetchData()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al eliminar el comprobante'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setDeletingMovementVoucher(null)
+    }
+  }
+
+  const handleDeleteMovement = async (commission, movement) => {
+    if (!window.confirm('¿Eliminar este pago de comisión? Esta acción no se puede deshacer.')) return
+    setDeletingMovementId(movement._id)
+    try {
+      await commissionsService.removeMovement(commission.contractId, commission.sellerId, movement._id)
+      setToast({ message: 'Pago de comisión eliminado', type: 'success' })
+      await fetchData()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al eliminar el pago de comisión'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setDeletingMovementId(null)
     }
   }
 
@@ -120,7 +268,7 @@ const SellerDetail = () => {
           >
             {seller.name?.charAt(0)?.toUpperCase() || '?'}
           </div>
-          <div>
+          <div className="flex-1">
             <div className="flex items-center gap-3 mb-1">
               <h1 className="text-2xl font-semibold tracking-tight" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}>{seller.name}</h1>
               <RoleBadge role={seller.role} />
@@ -130,6 +278,15 @@ const SellerDetail = () => {
               {seller.phone && <span className="flex items-center gap-1.5"><Phone size={13} />{seller.phone}</span>}
             </div>
           </div>
+          {canEditSeller && (
+            <button
+              onClick={() => setEditOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors hover:bg-[var(--color-surface)] flex-shrink-0"
+              style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+            >
+              <Pencil size={13} /> Editar
+            </button>
+          )}
         </div>
 
         {/* Stats row: estado de cuenta general */}
@@ -147,6 +304,72 @@ const SellerDetail = () => {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Adjuntos del vendedor (identificación, contratos, etc.) */}
+      <div className="rounded-xl border bg-white overflow-hidden mb-6" style={{ borderColor: 'var(--color-border-light)', boxShadow: 'var(--shadow-sm)' }}>
+        <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
+          <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-accent)' }}>Documentos adjuntos</p>
+          {canUploadAttachments && (
+            <label className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg cursor-pointer transition-all hover:shadow-sm text-white" style={{ background: 'var(--color-primary)' }}>
+              {uploadingAttachments
+                ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                : <Upload size={13} />}
+              Adjuntar
+              <input type="file" multiple onChange={handleUploadAttachments} disabled={uploadingAttachments} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp,.gif" />
+            </label>
+          )}
+        </div>
+
+        {attachmentsLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-6 h-6 border-2 border-gray-200 border-t-[var(--color-primary)] rounded-full animate-spin" />
+          </div>
+        ) : attachments.length === 0 ? (
+          <div className="text-center py-8">
+            <Paperclip size={24} className="mx-auto mb-2" style={{ color: 'var(--color-border)' }} />
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Sin documentos adjuntos</p>
+          </div>
+        ) : (
+          <div className="p-4 space-y-1.5">
+            {attachments.map(a => (
+              <div key={a._id} className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border-light)]">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-info-bg)' }}>
+                    <File size={12} style={{ color: 'var(--color-info)' }} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium truncate" style={{ color: 'var(--color-text)' }}>{a.filename}</p>
+                    <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>{formatDateShort(a.createdAt)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <a
+                    href={`${serverBase}${a.filepath}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 rounded-md hover:bg-white transition-colors"
+                    title="Abrir en nueva ventana"
+                  >
+                    <ExternalLink size={13} style={{ color: 'var(--color-info)' }} />
+                  </a>
+                  {canDeleteAttachments && (
+                    <button
+                      onClick={() => handleDeleteAttachment(a._id)}
+                      disabled={deletingAttachmentId === a._id}
+                      className="p-1.5 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
+                      title="Eliminar adjunto"
+                    >
+                      {deletingAttachmentId === a._id
+                        ? <span className="block w-3.5 h-3.5 border-2 border-red-200 border-t-red-500 rounded-full animate-spin" />
+                        : <Trash2 size={13} style={{ color: 'var(--color-danger)' }} />}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tabla de contratos asignados */}
@@ -236,12 +459,33 @@ const SellerDetail = () => {
                             <div className="space-y-1">
                               {commission.movements.map((m, mi) => (
                                 <div key={m._id || mi} className="px-3 py-2 rounded-md bg-white text-xs">
-                                  <div className="flex items-center justify-between">
+                                  <div className="flex items-center justify-between gap-2">
                                     <span style={{ color: 'var(--color-text-secondary)' }}>
                                       {getMethodLabel(m.paymentMethod)} {m.reference ? `· ${m.reference}` : ''}
                                     </span>
                                     <span className="font-bold" style={{ color: 'var(--color-success)' }}>{formatUSD(m.amount)}</span>
                                     <span style={{ color: 'var(--color-text-muted)' }}>{formatDateShort(m.paymentDate || m.registeredAt)}</span>
+                                    {canEditCommissionPayment && (
+                                      <div className="flex items-center gap-1 flex-shrink-0">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleEditMovement(commission, m) }}
+                                          className="p-1 rounded-md hover:bg-[var(--color-surface)] transition-colors"
+                                          title="Editar pago"
+                                        >
+                                          <Pencil size={12} style={{ color: 'var(--color-text-muted)' }} />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleDeleteMovement(commission, m) }}
+                                          disabled={deletingMovementId === m._id}
+                                          className="p-1 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
+                                          title="Eliminar pago"
+                                        >
+                                          {deletingMovementId === m._id
+                                            ? <span className="block w-3 h-3 border-2 border-red-200 border-t-red-500 rounded-full animate-spin" />
+                                            : <Trash2 size={12} style={{ color: 'var(--color-danger)' }} />}
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                   {m.vouchers?.length > 0 && (
                                     <div className="flex flex-wrap gap-1.5 mt-1.5 pt-1.5 border-t border-[var(--color-border-light)]">
@@ -283,6 +527,25 @@ const SellerDetail = () => {
         onSubmit={handleRegisterPayment}
         commission={registeringPaymentFor}
         loading={registerLoading}
+      />
+
+      <EditCommissionPaymentModal
+        isOpen={!!editingMovement}
+        onClose={() => setEditingMovement(null)}
+        onSubmit={handleSubmitEditMovement}
+        commission={editingMovement?.commission}
+        movement={editingMovement?.movement}
+        loading={editMovementLoading}
+        onDeleteVoucher={handleDeleteMovementVoucher}
+        deletingVoucher={deletingMovementVoucher}
+      />
+
+      <EditSellerModal
+        isOpen={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSubmit={handleEditSeller}
+        seller={seller}
+        loading={editLoading}
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

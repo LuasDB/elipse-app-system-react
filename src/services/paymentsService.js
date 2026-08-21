@@ -45,6 +45,16 @@ const paymentsService = {
     return data
   },
 
+  async update(paymentId, paymentData) {
+    const { data } = await apiServices.patch(`/payments/${paymentId}`, paymentData)
+    return data
+  },
+
+  async getAuditLog(paymentId) {
+    const { data } = await apiServices.get(`/payments/${paymentId}/audit`)
+    return data
+  },
+
   async delete(id) {
     const { data } = await apiServices.delete(`/payments/${id}`)
     return data

@@ -1,41 +1,36 @@
 import { useState, useEffect } from 'react'
 import useLockBodyScroll from '@/hooks/useLockBodyScroll'
-import { X, DollarSign, CreditCard, Upload, File, Trash2, ExternalLink, Paperclip, TrendingUp } from 'lucide-react'
+import { X, DollarSign, CreditCard, Calendar, Upload, Trash2, Paperclip, File, ExternalLink, Pencil } from 'lucide-react'
 import { PAYMENT_METHODS } from '@/utils/paymentConstants'
 import { API_BASE_URL } from '@/api/axiosConfig'
-import { convertToMXN, formatMXN, formatUSD } from '@/utils/currency'
+import { formatUSD } from '@/utils/currency'
 
-const todayISO = () => new Date().toISOString().slice(0, 10)
-const formatPrice = (n) => n ? `$${Number(n).toLocaleString('en-US')}` : '$0'
+const toDateInput = (d) => d ? new Date(d).toISOString().slice(0, 10) : ''
 const formatFileSize = (bytes) => {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / 1048576).toFixed(1) + ' MB'
 }
 
-const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, canManageVouchers = false, onDeleteVoucher, deletingVoucher = null }) => {
-  const [form, setForm] = useState({
-    amount: '', paymentMethod: 'transferencia', reference: '', notes: '',
-    exchangeRate: '', exchangeRateDate: todayISO()
-  })
+const EditCommissionPaymentModal = ({ isOpen, onClose, onSubmit, commission, movement, loading, onDeleteVoucher, deletingVoucher = null }) => {
+  const [form, setForm] = useState({ amount: '', paymentMethod: 'transferencia', reference: '', notes: '', paymentDate: toDateInput(new Date()) })
   const [errors, setErrors] = useState({})
   const [selectedFiles, setSelectedFiles] = useState([])
   useLockBodyScroll(isOpen)
+
   useEffect(() => {
-    if (payment) {
-      const defaultRate = payment.lastExchangeRate || payment.contractExchangeRate || ''
+    if (movement) {
       setForm({
-        amount: payment.balance || '',
-        paymentMethod: 'transferencia',
-        reference: '',
-        notes: '',
-        exchangeRate: defaultRate,
-        exchangeRateDate: todayISO()
+        amount: movement.amount ?? '',
+        paymentMethod: movement.paymentMethod || 'transferencia',
+        reference: movement.reference || '',
+        notes: movement.notes || '',
+        paymentDate: toDateInput(movement.paymentDate || movement.registeredAt)
       })
     }
     setErrors({})
     setSelectedFiles([])
-  }, [payment, isOpen])
+  }, [movement, isOpen])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -53,12 +48,14 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, can
     setSelectedFiles(prev => prev.filter((_, i) => i !== index))
   }
 
+  const availableForThisMovement = commission ? (commission.balance || 0) + (movement?.amount || 0) : 0
+
   const validate = () => {
     const errs = {}
     if (!form.amount || Number(form.amount) <= 0) errs.amount = 'Ingresa un monto válido'
+    if (Number(form.amount) > availableForThisMovement) errs.amount = 'El monto excede el saldo disponible de la comisión'
     if (!form.paymentMethod) errs.paymentMethod = 'Selecciona un método'
-    if (!form.exchangeRate || Number(form.exchangeRate) <= 0) errs.exchangeRate = 'TC requerido'
-    if (!form.exchangeRateDate) errs.exchangeRateDate = 'Fecha del TC requerida'
+    if (!form.paymentDate) errs.paymentDate = 'Fecha del pago requerida'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -69,82 +66,63 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, can
     onSubmit({ ...form, files: selectedFiles })
   }
 
-  if (!isOpen || !payment) return null
+  if (!isOpen || !movement || !commission) return null
 
   const inputClass = (name) => `w-full px-3 py-2.5 text-sm rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] ${errors[name] ? 'border-red-300 bg-red-50/50' : 'border-[var(--color-border)] bg-white hover:border-gray-300'}`
   const labelClass = "block text-xs font-semibold uppercase tracking-wider mb-1.5 text-[var(--color-text-secondary)]"
 
-  // Existing vouchers
-  const existingVouchers = payment.vouchers || []
+  const existingVouchers = movement.vouchers || []
   const serverBase = API_BASE_URL ? API_BASE_URL.replace('/api/v1', '') : ''
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex h-[90vh] items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-0 sm:px-4"
-    ><div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-scaleIn overflow-hidden max-h-[92vh] flex flex-col">
-        <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, #059669, #047857)' }}>
-          <div>
-            <h2 className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>Registrar Pago</h2>
-            <p className="text-xs text-emerald-200 mt-0.5">{payment.concept}</p>
+    <div className="fixed inset-0 z-50 flex h-[90vh] items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-0 sm:px-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-scaleIn overflow-hidden max-h-[92vh] flex flex-col">
+        <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, #C8A45A, #A8843F)' }}>
+          <div className="flex items-center gap-2">
+            <Pencil size={16} className="text-white" />
+            <div>
+              <h2 className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>Editar Pago de Comisión</h2>
+              <p className="text-xs text-amber-100 mt-0.5">{commission.contractNumber}{commission.sellerName ? ` · ${commission.sellerName}` : ''} — Solo administradores</p>
+            </div>
           </div>
-          <button onClick={onClose} className="text-emerald-200 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"><X size={20} /></button>
+          <button onClick={onClose} className="text-amber-100 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"><X size={20} /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {/* Info card */}
           <div className="px-6 pt-5">
             <div className="grid grid-cols-3 gap-3 p-3 rounded-lg" style={{ background: 'var(--color-surface)' }}>
               <div className="text-center">
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Esperado USD</p>
-                <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{formatUSD(payment.expectedAmount)}</p>
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Comisión</p>
+                <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{formatUSD(commission.amount)}</p>
               </div>
               <div className="text-center">
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Pagado USD</p>
-                <p className="text-sm font-bold" style={{ color: 'var(--color-success)' }}>{formatUSD(payment.paidAmount)}</p>
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Pagado</p>
+                <p className="text-sm font-bold" style={{ color: 'var(--color-success)' }}>{formatUSD(commission.paidAmount)}</p>
               </div>
               <div className="text-center">
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Saldo USD</p>
-                <p className="text-sm font-bold" style={{ color: payment.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>{formatUSD(payment.balance)}</p>
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--color-text-muted)' }}>Saldo</p>
+                <p className="text-sm font-bold" style={{ color: commission.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>{formatUSD(commission.balance)}</p>
               </div>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* Tipo de cambio del día */}
-            <div className="p-3 rounded-lg border-2" style={{ borderColor: 'var(--color-accent)', background: 'var(--color-accent-muted)' }}>
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp size={14} style={{ color: 'var(--color-accent)' }} />
-                <p className="text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>Tipo de cambio del día</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>TC (MXN/USD) <span className="text-red-400">*</span></label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                    <input type="number" step="0.0001" name="exchangeRate" value={form.exchangeRate} onChange={handleChange} placeholder="17.5000" className={`pl-8 ${inputClass('exchangeRate')}`} />
-                  </div>
-                  {errors.exchangeRate && <p className="text-xs text-red-500 mt-1">{errors.exchangeRate}</p>}
-                </div>
-                <div>
-                  <label className={labelClass}>Fecha TC <span className="text-red-400">*</span></label>
-                  <input type="date" name="exchangeRateDate" value={form.exchangeRateDate} onChange={handleChange} className={inputClass('exchangeRateDate')} />
-                  {errors.exchangeRateDate && <p className="text-xs text-red-500 mt-1">{errors.exchangeRateDate}</p>}
-                </div>
-              </div>
-            </div>
-
             <div>
-              <label className={labelClass}>Monto a pagar (USD) <span className="text-red-400">*</span></label>
+              <label className={labelClass}>Monto depositado (USD) <span className="text-red-400">*</span></label>
               <div className="relative">
                 <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input type="number" step="0.01" name="amount" value={form.amount} onChange={handleChange} placeholder="0.00" className={`pl-10 ${inputClass('amount')}`} />
               </div>
-              {form.amount && form.exchangeRate && (
-                <p className="text-[11px] mt-1" style={{ color: 'var(--color-success)' }}>
-                  ≈ {formatMXN(convertToMXN(form.amount, form.exchangeRate))}
-                </p>
-              )}
               {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount}</p>}
+            </div>
+
+            <div>
+              <label className={labelClass}>Fecha del pago <span className="text-red-400">*</span></label>
+              <div className="relative">
+                <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input type="date" name="paymentDate" value={form.paymentDate} onChange={handleChange} className={`pl-10 ${inputClass('paymentDate')}`} />
+              </div>
+              {errors.paymentDate && <p className="text-xs text-red-500 mt-1">{errors.paymentDate}</p>}
             </div>
 
             <div>
@@ -167,10 +145,10 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, can
               <textarea name="notes" value={form.notes} onChange={handleChange} rows={2} placeholder="Observaciones del pago..." className="w-full px-4 py-2.5 text-sm rounded-lg border border-[var(--color-border)] bg-white hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-all resize-none" />
             </div>
 
-            {/* Voucher upload */}
+            {/* Comprobantes */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className={`${labelClass} mb-0`}>Comprobantes de pago</label>
+                <label className={`${labelClass} mb-0`}>Comprobante de pago</label>
                 <label className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg cursor-pointer transition-all hover:shadow-sm text-white" style={{ background: 'var(--color-primary)' }}>
                   <Upload size={13} />
                   Adjuntar
@@ -178,7 +156,6 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, can
                 </label>
               </div>
 
-              {/* Existing vouchers (read only) */}
               {existingVouchers.length > 0 && (
                 <div className="mb-3">
                   <p className="text-[10px] uppercase tracking-wider font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>Ya adjuntados</p>
@@ -196,7 +173,7 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, can
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0">
                           <a
-                            href={`${serverBase}/uploads/payments/${payment._id}/${v.fileName}`}
+                            href={`${serverBase}/uploads/commissions/${commission.contractId}/${commission.sellerId}/${v.fileName}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1.5 rounded-md hover:bg-white transition-colors"
@@ -204,19 +181,17 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, can
                           >
                             <ExternalLink size={13} style={{ color: 'var(--color-info)' }} />
                           </a>
-                          {canManageVouchers && (
-                            <button
-                              type="button"
-                              onClick={() => onDeleteVoucher?.(v.fileName)}
-                              disabled={deletingVoucher === v.fileName}
-                              className="p-1.5 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
-                              title="Eliminar comprobante"
-                            >
-                              {deletingVoucher === v.fileName
-                                ? <span className="block w-3.5 h-3.5 border-2 border-red-200 border-t-red-500 rounded-full animate-spin" />
-                                : <Trash2 size={13} style={{ color: 'var(--color-danger)' }} />}
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => onDeleteVoucher?.(v.fileName)}
+                            disabled={deletingVoucher === v.fileName}
+                            className="p-1.5 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
+                            title="Eliminar comprobante"
+                          >
+                            {deletingVoucher === v.fileName
+                              ? <span className="block w-3.5 h-3.5 border-2 border-red-200 border-t-red-500 rounded-full animate-spin" />
+                              : <Trash2 size={13} style={{ color: 'var(--color-danger)' }} />}
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -224,7 +199,6 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, can
                 </div>
               )}
 
-              {/* New files to upload */}
               {selectedFiles.length > 0 && (
                 <div>
                   <p className="text-[10px] uppercase tracking-wider font-semibold mb-1.5" style={{ color: 'var(--color-accent)' }}>Nuevos archivos</p>
@@ -252,15 +226,15 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, can
               {existingVouchers.length === 0 && selectedFiles.length === 0 && (
                 <div className="text-center py-4 rounded-lg border border-dashed" style={{ borderColor: 'var(--color-border)' }}>
                   <Paperclip size={18} className="mx-auto mb-1" style={{ color: 'var(--color-border)' }} />
-                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>PDF o imágenes del baucher de pago</p>
+                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>PDF o imágenes del comprobante de pago</p>
                 </div>
               )}
             </div>
 
             <div className="flex justify-end gap-3 pt-3 border-t border-[var(--color-border-light)]">
               <button type="button" onClick={onClose} disabled={loading} className="px-5 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-gray-50 transition-colors">Cancelar</button>
-              <button type="submit" disabled={loading} className="px-5 py-2.5 text-sm font-medium rounded-lg text-white transition-all hover:shadow-md disabled:opacity-50" style={{ background: '#059669' }}>
-                {loading ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Registrando...</span> : 'Registrar pago'}
+              <button type="submit" disabled={loading} className="px-5 py-2.5 text-sm font-medium rounded-lg text-white transition-all hover:shadow-md disabled:opacity-50" style={{ background: '#C8A45A' }}>
+                {loading ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando...</span> : 'Guardar cambios'}
               </button>
             </div>
           </form>
@@ -270,4 +244,4 @@ const RegisterPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, can
   )
 }
 
-export default RegisterPaymentModal
+export default EditCommissionPaymentModal

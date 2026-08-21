@@ -3,10 +3,12 @@ import { useSearchParams } from 'react-router-dom'
 import { Building2, Search, ChevronDown, DollarSign, AlertCircle } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import RegisterPaymentModal from './RegisterPaymentModal'
+import EditPaymentModal from './EditPaymentModal'
 import ContractPaymentsCard from './ContractPaymentsCard'
 import Toast from '@/components/common/Toast'
 import paymentsService from '@/services/paymentsService'
 import projectsService from '@/services/projectsService'
+import { useAuth } from '@/context/AuthContext'
 import { formatUSD, formatMXN, convertToMXN } from '@/utils/currency'
 
 const Payments = () => {
@@ -21,10 +23,21 @@ const Payments = () => {
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
 
+  const { user } = useAuth()
+  const canEditPayments = user?.role === 'admin'
+  const canManageVouchers = ['admin', 'gerente'].includes(user?.role)
+
   const [registerOpen, setRegisterOpen] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState(null)
   const [selectedContract, setSelectedContract] = useState(null)
   const [registerLoading, setRegisterLoading] = useState(false)
+  const [deletingVoucher, setDeletingVoucher] = useState(null)
+
+  const [editOpen, setEditOpen] = useState(false)
+  const [editPayment, setEditPayment] = useState(null)
+  const [editLoading, setEditLoading] = useState(false)
+  const [deletingEditVoucher, setDeletingEditVoucher] = useState(null)
+
   const [toast, setToast] = useState(null)
 
   // Cargar proyectos
@@ -122,6 +135,68 @@ const Payments = () => {
       setToast({ message: msg, type: 'error' })
     } finally {
       setRegisterLoading(false)
+    }
+  }
+
+  const handleDeleteVoucher = async (fileName) => {
+    if (!selectedPayment) return
+    setDeletingVoucher(fileName)
+    try {
+      await paymentsService.removeVoucher(selectedPayment._id, fileName)
+      setSelectedPayment(prev => prev ? { ...prev, vouchers: (prev.vouchers || []).filter(v => v.fileName !== fileName) } : prev)
+      setToast({ message: 'Comprobante eliminado', type: 'success' })
+      await fetchContracts()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al eliminar el comprobante'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setDeletingVoucher(null)
+    }
+  }
+
+  const handleEditPayment = (payment) => {
+    setEditPayment(payment)
+    setEditOpen(true)
+  }
+
+  const handleSubmitEditPayment = async (formData) => {
+    if (!editPayment) return
+    setEditLoading(true)
+    try {
+      const { files, ...updates } = formData
+      await paymentsService.update(editPayment._id, updates)
+
+      if (files && files.length > 0) {
+        const fd = new FormData()
+        files.forEach(f => fd.append('vouchers', f))
+        await paymentsService.uploadVouchers(editPayment._id, fd)
+      }
+
+      setToast({ message: 'Pago actualizado correctamente', type: 'success' })
+      setEditOpen(false)
+      setEditPayment(null)
+      await fetchContracts()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al editar el pago'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  const handleDeleteEditVoucher = async (fileName) => {
+    if (!editPayment) return
+    setDeletingEditVoucher(fileName)
+    try {
+      await paymentsService.removeVoucher(editPayment._id, fileName)
+      setEditPayment(prev => prev ? { ...prev, vouchers: (prev.vouchers || []).filter(v => v.fileName !== fileName) } : prev)
+      setToast({ message: 'Comprobante eliminado', type: 'success' })
+      await fetchContracts()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al eliminar el comprobante'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setDeletingEditVoucher(null)
     }
   }
 
@@ -240,6 +315,8 @@ const Payments = () => {
                   defaultOpen={c._id === targetContractId || (idx === 0 && filteredContracts.length <= 3)}
                   highlighted={c._id === targetContractId}
                   onRegisterPayment={handleRegisterPayment}
+                  onEditPayment={handleEditPayment}
+                  canEditPayments={canEditPayments}
                 />
               ))
             )}
@@ -267,6 +344,20 @@ const Payments = () => {
         onSubmit={handleSubmitPayment}
         payment={selectedPayment}
         loading={registerLoading}
+        canManageVouchers={canManageVouchers}
+        onDeleteVoucher={handleDeleteVoucher}
+        deletingVoucher={deletingVoucher}
+      />
+
+      {/* Modal de edición de pago (solo admin) */}
+      <EditPaymentModal
+        isOpen={editOpen}
+        onClose={() => { setEditOpen(false); setEditPayment(null) }}
+        onSubmit={handleSubmitEditPayment}
+        payment={editPayment}
+        loading={editLoading}
+        onDeleteVoucher={handleDeleteEditVoucher}
+        deletingVoucher={deletingEditVoucher}
       />
 
       {/* Toast */}

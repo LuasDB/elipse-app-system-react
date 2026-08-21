@@ -4,11 +4,11 @@ import {
   X, Building2, Home, User, DollarSign, Calendar, FileText,
   Phone, Mail, MapPin, CheckCircle, Clock, AlertTriangle,
   ExternalLink, File, Paperclip, ChevronDown, ChevronUp,
-  Hammer, Calendar as CalendarIcon, CheckCircle2, Lock,Pencil, Percent
+  Hammer, Calendar as CalendarIcon, CheckCircle2, Lock,Pencil, Percent, Trash2
 } from 'lucide-react'
 import StatusBadge from '@/components/common/StatusBadge'
 import { CONTRACT_STATUS, PAYMENT_SCHEMES, CONTRACT_MODALITIES, getModalityConfig } from '@/utils/contractConstants'
-import { PAYMENT_STATUS } from '@/utils/paymentConstants'
+import { PAYMENT_STATUS, PAYMENT_METHODS } from '@/utils/paymentConstants'
 import { getStatusConfig } from '@/utils/projectConstants'
 import paymentsService from '@/services/paymentsService'
 import { API_BASE_URL } from '@/api/axiosConfig'
@@ -26,6 +26,7 @@ import usersService from '@/services/usersService'
 import { getCommissionStatusConfig } from '@/utils/commissionConstants'
 import AssignCommissionModal from '@/components/common/AssignCommissionModal'
 import RegisterCommissionPaymentModal from '@/components/common/RegisterCommissionPaymentModal'
+import EditCommissionPaymentModal from '@/components/common/EditCommissionPaymentModal'
 import { useAuth } from '@/context/AuthContext'
 
 const CLOSED_CONTRACT_STATUSES = ['entregado', 'cancelado']
@@ -33,6 +34,7 @@ const CLOSED_CONTRACT_STATUSES = ['entregado', 'cancelado']
 const formatPrice = (n) => formatUSD(n)
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'
 const formatDateShort = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+const getMethodLabel = (value) => PAYMENT_METHODS.find(m => m.value === value)?.label || value || '—'
 const formatFileSize = (bytes) => {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
@@ -82,6 +84,7 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
   const canEdit = ['admin', 'gerente'].includes(user?.role)
   const canAssignCommission = user?.role === 'admin'
   const canRegisterCommissionPayment = ['admin', 'gerente'].includes(user?.role)
+  const canEditCommissionPayment = user?.role === 'admin'
 
   const [commissions, setCommissions] = useState([])
   const [loadingCommission, setLoadingCommission] = useState(true)
@@ -90,6 +93,10 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
   const [assigningCommissionLoading, setAssigningCommissionLoading] = useState(false)
   const [registeringCommissionPaymentFor, setRegisteringCommissionPaymentFor] = useState(null)
   const [registeringCommissionPaymentLoading, setRegisteringCommissionPaymentLoading] = useState(false)
+  const [editingCommissionMovement, setEditingCommissionMovement] = useState(null)
+  const [editingCommissionMovementLoading, setEditingCommissionMovementLoading] = useState(false)
+  const [deletingCommissionVoucher, setDeletingCommissionVoucher] = useState(null)
+  const [deletingCommissionMovementId, setDeletingCommissionMovementId] = useState(null)
 
   const [payments, setPayments] = useState([])
   const [summary, setSummary] = useState(null)
@@ -324,6 +331,73 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
     }
   }
 
+  const handleEditCommissionMovement = (commission, movement) => {
+    setEditingCommissionMovement({ commission, movement })
+  }
+
+  const handleSubmitEditCommissionMovement = async (formData) => {
+    if (!editingCommissionMovement) return
+    const { commission, movement } = editingCommissionMovement
+    setEditingCommissionMovementLoading(true)
+    try {
+      const { files, ...updates } = formData
+      await commissionsService.updateMovement(commission.contractId, commission.sellerId, movement._id, {
+        amount: Number(updates.amount),
+        paymentMethod: updates.paymentMethod,
+        reference: updates.reference,
+        notes: updates.notes,
+        paymentDate: updates.paymentDate
+      })
+
+      if (files && files.length > 0) {
+        const fd = new FormData()
+        files.forEach(f => fd.append('vouchers', f))
+        await commissionsService.uploadVouchers(commission.contractId, commission.sellerId, movement._id, fd)
+      }
+
+      setToast({ message: 'Pago de comisión actualizado', type: 'success' })
+      setEditingCommissionMovement(null)
+      await loadCommission()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al actualizar el pago de comisión'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setEditingCommissionMovementLoading(false)
+    }
+  }
+
+  const handleDeleteCommissionVoucher = async (fileName) => {
+    if (!editingCommissionMovement) return
+    const { commission, movement } = editingCommissionMovement
+    setDeletingCommissionVoucher(fileName)
+    try {
+      await commissionsService.removeVoucher(commission.contractId, commission.sellerId, movement._id, fileName)
+      setEditingCommissionMovement(prev => prev ? { ...prev, movement: { ...prev.movement, vouchers: (prev.movement.vouchers || []).filter(v => v.fileName !== fileName) } } : prev)
+      setToast({ message: 'Comprobante eliminado', type: 'success' })
+      await loadCommission()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al eliminar el comprobante'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setDeletingCommissionVoucher(null)
+    }
+  }
+
+  const handleDeleteCommissionMovement = async (commission, movement) => {
+    if (!window.confirm('¿Eliminar este pago de comisión? Esta acción no se puede deshacer.')) return
+    setDeletingCommissionMovementId(movement._id)
+    try {
+      await commissionsService.removeMovement(commission.contractId, commission.sellerId, movement._id)
+      setToast({ message: 'Pago de comisión eliminado', type: 'success' })
+      await loadCommission()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al eliminar el pago de comisión'
+      setToast({ message: msg, type: 'error' })
+    } finally {
+      setDeletingCommissionMovementId(null)
+    }
+  }
+
   const handleUploadFiles = async (newFiles) => {
     if (!newFiles?.length) return
     setFilesLoading(true)
@@ -490,6 +564,67 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
                           <DualPrice usd={c.balance} rate={contract.exchangeRate} size="sm" color={c.balance > 0 ? 'var(--color-danger)' : 'var(--color-success)'} />
                         </div>
                       </div>
+
+                      {c.movements && c.movements.length > 0 && (
+                        <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--color-border-light)' }}>
+                          <p className="text-[10px] uppercase tracking-wider font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>
+                            Historial de pagos ({c.movements.length})
+                          </p>
+                          <div className="space-y-1">
+                            {c.movements.map((m, mi) => (
+                              <div key={m._id || mi} className="px-3 py-2 rounded-md text-xs" style={{ background: 'var(--color-surface)' }}>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span style={{ color: 'var(--color-text-secondary)' }}>
+                                    {getMethodLabel(m.paymentMethod)} {m.reference ? `· ${m.reference}` : ''}
+                                  </span>
+                                  <span className="font-bold" style={{ color: 'var(--color-success)' }}>{formatUSD(m.amount)}</span>
+                                  <span style={{ color: 'var(--color-text-muted)' }}>{formatDateShort(m.paymentDate || m.registeredAt)}</span>
+                                  {canEditCommissionPayment && (
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      <button
+                                        onClick={() => handleEditCommissionMovement(c, m)}
+                                        className="p-1 rounded-md hover:bg-white transition-colors"
+                                        title="Editar pago"
+                                      >
+                                        <Pencil size={12} style={{ color: 'var(--color-text-muted)' }} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteCommissionMovement(c, m)}
+                                        disabled={deletingCommissionMovementId === m._id}
+                                        className="p-1 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
+                                        title="Eliminar pago"
+                                      >
+                                        {deletingCommissionMovementId === m._id
+                                          ? <span className="block w-3 h-3 border-2 border-red-200 border-t-red-500 rounded-full animate-spin" />
+                                          : <Trash2 size={12} style={{ color: 'var(--color-danger)' }} />}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                                {m.vouchers?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mt-1.5 pt-1.5 border-t" style={{ borderColor: 'var(--color-border-light)' }}>
+                                    {m.vouchers.map((v, vi) => (
+                                      <a
+                                        key={vi}
+                                        href={`${serverBase}/uploads/commissions/${c.contractId}/${c.sellerId}/${v.fileName}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-white transition-colors"
+                                        style={{ color: 'var(--color-info)' }}
+                                        title={v.originalName}
+                                      >
+                                        <Paperclip size={11} />
+                                        <span className="truncate max-w-[100px]">{v.originalName}</span>
+                                        <ExternalLink size={10} />
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -859,6 +994,18 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
         onSubmit={handleRegisterCommissionPayment}
         commission={registeringCommissionPaymentFor}
         loading={registeringCommissionPaymentLoading}
+      />
+
+      {/* Modal: editar pago de comisión */}
+      <EditCommissionPaymentModal
+        isOpen={!!editingCommissionMovement}
+        onClose={() => setEditingCommissionMovement(null)}
+        onSubmit={handleSubmitEditCommissionMovement}
+        commission={editingCommissionMovement?.commission}
+        movement={editingCommissionMovement?.movement}
+        loading={editingCommissionMovementLoading}
+        onDeleteVoucher={handleDeleteCommissionVoucher}
+        deletingVoucher={deletingCommissionVoucher}
       />
 
       {/* Modal: registrar pago */}

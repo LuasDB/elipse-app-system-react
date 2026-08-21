@@ -49,6 +49,16 @@ const commissionsService = {
     return data
   },
 
+  async updateMovement(contractId, sellerId, movementId, updates) {
+    const { data } = await apiServices.patch(`/commissions/contract/${contractId}/sellers/${sellerId}/payments/${movementId}`, updates)
+    return data
+  },
+
+  async removeMovement(contractId, sellerId, movementId) {
+    const { data } = await apiServices.delete(`/commissions/contract/${contractId}/sellers/${sellerId}/payments/${movementId}`)
+    return data
+  },
+
   async getBySeller(sellerId) {
     const { data } = await apiServices.get(`/commissions/seller/${sellerId}`)
     return data
