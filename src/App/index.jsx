@@ -11,6 +11,7 @@ import PaymentsPage from '@/Pages/Payments'
 import SellersPage from '@/Pages/Sellers'
 import SellerDetail from '@/Pages/Sellers/SellerDetail'
 import ReportsPage from '@/Pages/Reports'
+import AuditPage from '@/Pages/Audit'
 import Help from '@/Pages/Help'
 
 
@@ -72,6 +73,7 @@ const AppContent = () => {
                 <Route path="/vendedores/:id" element={<SellerDetail />} />
                 <Route path="/entregas" element={<ComingSoon label="Entregas" />} />
                 <Route path="/reportes" element={<ReportsRoute><ReportsPage /></ReportsRoute>} />
+                <Route path="/auditoria" element={<AdminOnlyRoute><AuditPage /></AdminOnlyRoute>} />
                 <Route path="/ayuda" element={<Help />} />
 
                 <Route path="/" element={<DefaultRedirect />} />

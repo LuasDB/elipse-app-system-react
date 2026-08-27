@@ -25,6 +25,7 @@ import commissionsService from '@/services/commissionsService'
 import usersService from '@/services/usersService'
 import { getCommissionStatusConfig } from '@/utils/commissionConstants'
 import AssignCommissionModal from '@/components/common/AssignCommissionModal'
+import AuditTrail from '@/components/common/AuditTrail'
 import RegisterCommissionPaymentModal from '@/components/common/RegisterCommissionPaymentModal'
 import EditCommissionPaymentModal from '@/components/common/EditCommissionPaymentModal'
 import { useAuth } from '@/context/AuthContext'
@@ -984,6 +985,11 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
               <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--color-accent)' }}>Observaciones</p>
               <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{contract.notes}</p>
             </div>
+          )}
+
+          {/* Historial de cambios — solo admin */}
+          {user?.role === 'admin' && contract._id && (
+            <AuditTrail entity="contract" entityId={contract._id} />
           )}
         </div>
 

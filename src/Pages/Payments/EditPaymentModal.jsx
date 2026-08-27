@@ -4,6 +4,7 @@ import { X, DollarSign, Pencil, Upload, Trash2, Paperclip, File, ExternalLink } 
 import { PAYMENT_METHODS, PAYMENT_STATUS } from '@/utils/paymentConstants'
 import { API_BASE_URL } from '@/api/axiosConfig'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
+import AuditTrail from '@/components/common/AuditTrail'
 
 const toDateInput = (d) => d ? new Date(d).toISOString().slice(0, 10) : ''
 const formatFileSize = (bytes) => {
@@ -255,6 +256,10 @@ const EditPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, onDelet
                 </div>
               )}
             </div>
+
+            {payment._id && (
+              <AuditTrail entity="payment" entityId={payment._id} title="Historial de este pago" />
+            )}
 
             <div className="flex justify-end gap-3 pt-3 border-t border-[var(--color-border-light)]">
               <button type="button" onClick={onClose} disabled={loading} className="px-5 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-gray-50 transition-colors">Cancelar</button>
