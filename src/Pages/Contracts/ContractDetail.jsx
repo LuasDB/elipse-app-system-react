@@ -17,6 +17,7 @@ import DualPrice from '@/components/common/DualPrice'
 import MilestoneTimeline from '@/components/common/MilestoneTimeline'
 import CompleteMilestoneModal from '@/components/common/CompleteMilestoneModal'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
+import PasswordConfirmDialog from '@/components/common/PasswordConfirmDialog'
 import Toast from '@/components/common/Toast'
 import RegisterPaymentModal from '@/Pages/Payments/RegisterPaymentModal'
 import FileUploadZone from '@/components/common/FileUploadZone'
@@ -295,20 +296,14 @@ const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
     setPendingRemoveSeller(sellerId)
   }
 
-  const confirmRemoveSellerCommission = async () => {
+  // El PasswordConfirmDialog maneja loading/error: si esto lanza, se queda
+  // abierto con el mensaje del backend.
+  const confirmRemoveSellerCommission = async (password) => {
     if (!pendingRemoveSeller) return
-    setAssigningCommissionLoading(true)
-    try {
-      await commissionsService.removeSeller(contract._id, pendingRemoveSeller)
-      setToast({ message: 'Vendedor quitado del contrato', type: 'success' })
-      setPendingRemoveSeller(null)
-      await loadCommission()
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Error al quitar al vendedor'
-      setToast({ message: msg, type: 'error' })
-    } finally {
-      setAssigningCommissionLoading(false)
-    }
+    await commissionsService.removeSeller(contract._id, pendingRemoveSeller, password)
+    setToast({ message: 'Vendedor quitado del contrato', type: 'success' })
+    setPendingRemoveSeller(null)
+    await loadCommission()
   }
 
   const handleRegisterCommissionPayment = async (formData) => {
@@ -397,18 +392,15 @@ const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
     setPendingDeleteMovement({ commission, movement })
   }
 
-  const confirmDeleteCommissionMovement = async () => {
+  const confirmDeleteCommissionMovement = async (password) => {
     if (!pendingDeleteMovement) return
     const { commission, movement } = pendingDeleteMovement
     setDeletingCommissionMovementId(movement._id)
     try {
-      await commissionsService.removeMovement(commission.contractId, commission.sellerId, movement._id)
+      await commissionsService.removeMovement(commission.contractId, commission.sellerId, movement._id, password)
       setToast({ message: 'Pago de comisión eliminado', type: 'success' })
       setPendingDeleteMovement(null)
       await loadCommission()
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Error al eliminar el pago de comisión'
-      setToast({ message: msg, type: 'error' })
     } finally {
       setDeletingCommissionMovementId(null)
     }
@@ -1082,28 +1074,33 @@ const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
         variant="warning"
       />
 
-      {/* Confirm: quitar vendedor de la comisión */}
-      <ConfirmDialog
-        isOpen={!!pendingRemoveSeller}
-        onClose={() => setPendingRemoveSeller(null)}
-        onConfirm={confirmRemoveSellerCommission}
-        title="Quitar vendedor"
-        message="¿Quitar a este vendedor de la comisión del contrato? Se perderá la asignación de comisión."
-        confirmText="Quitar"
-        variant="warning"
-        loading={assigningCommissionLoading}
-      />
+      {/* Quitar vendedor de la comisión — requiere contraseña del admin */}
+      {!!pendingRemoveSeller && (
+        <PasswordConfirmDialog
+          isOpen
+          onClose={() => setPendingRemoveSeller(null)}
+          onConfirm={confirmRemoveSellerCommission}
+          title="Quitar vendedor"
+          message="Ingresa tu contraseña para quitar a este vendedor de la comisión del contrato."
+          warning="Se perderá la asignación de comisión. Si el vendedor ya tiene pagos de comisión registrados, también se eliminarán. Queda registrado en la bitácora."
+          confirmText="Quitar vendedor"
+          loadingText="Quitando..."
+        />
+      )}
 
-      {/* Confirm: eliminar pago de comisión */}
-      <ConfirmDialog
-        isOpen={!!pendingDeleteMovement}
-        onClose={() => setPendingDeleteMovement(null)}
-        onConfirm={confirmDeleteCommissionMovement}
-        title="Eliminar pago de comisión"
-        message="¿Eliminar este pago de comisión? Esta acción no se puede deshacer y ajustará el saldo de la comisión."
-        confirmText="Eliminar"
-        loading={deletingCommissionMovementId === pendingDeleteMovement?.movement?._id}
-      />
+      {/* Eliminar pago de comisión — requiere contraseña del admin */}
+      {!!pendingDeleteMovement && (
+        <PasswordConfirmDialog
+          isOpen
+          onClose={() => setPendingDeleteMovement(null)}
+          onConfirm={confirmDeleteCommissionMovement}
+          title="Eliminar pago de comisión"
+          message="Ingresa tu contraseña para eliminar este pago de comisión."
+          warning="Se ajustará el saldo de la comisión y no se puede deshacer. Queda registrado en la bitácora."
+          confirmText="Eliminar pago"
+          loadingText="Eliminando..."
+        />
+      )}
 
       {/* Confirm: eliminar archivo del contrato */}
       <ConfirmDialog

@@ -62,13 +62,15 @@ const paymentsService = {
     return data
   },
 
-  async delete(id) {
-    const { data } = await apiServices.delete(`/payments/${id}`)
+  // Ambas exigen la contraseña del admin (step-up auth). delete() permite borrar
+  // incluso un pago ya 'pagado'.
+  async delete(id, password) {
+    const { data } = await apiServices.delete(`/payments/${id}`, withConfirm(password))
     return data
   },
 
-  async deleteByContract(contractId) {
-    const { data } = await apiServices.delete(`/payments/contract/${contractId}`)
+  async deleteByContract(contractId, password) {
+    const { data } = await apiServices.delete(`/payments/contract/${contractId}`, withConfirm(password))
     return data
   },
 
