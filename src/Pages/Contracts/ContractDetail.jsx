@@ -17,6 +17,7 @@ import DualPrice from '@/components/common/DualPrice'
 import MilestoneTimeline from '@/components/common/MilestoneTimeline'
 import CompleteMilestoneModal from '@/components/common/CompleteMilestoneModal'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
+import PasswordConfirmDialog from '@/components/common/PasswordConfirmDialog'
 import Toast from '@/components/common/Toast'
 import RegisterPaymentModal from '@/Pages/Payments/RegisterPaymentModal'
 import FileUploadZone from '@/components/common/FileUploadZone'
@@ -25,6 +26,7 @@ import commissionsService from '@/services/commissionsService'
 import usersService from '@/services/usersService'
 import { getCommissionStatusConfig } from '@/utils/commissionConstants'
 import AssignCommissionModal from '@/components/common/AssignCommissionModal'
+import AuditTrail from '@/components/common/AuditTrail'
 import RegisterCommissionPaymentModal from '@/components/common/RegisterCommissionPaymentModal'
 import EditCommissionPaymentModal from '@/components/common/EditCommissionPaymentModal'
 import { useAuth } from '@/context/AuthContext'
@@ -78,13 +80,14 @@ const VouchersList = ({ vouchers, paymentId }) => {
   )
 }
 
-const ContractDetail = ({ contract, onClose,onEdit }) => {
+const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
 
   const { user } = useAuth()
   const canEdit = ['admin', 'gerente'].includes(user?.role)
   const canAssignCommission = user?.role === 'admin'
   const canRegisterCommissionPayment = ['admin', 'gerente'].includes(user?.role)
   const canEditCommissionPayment = user?.role === 'admin'
+  const canDeleteContract = user?.role === 'admin'
 
   const [commissions, setCommissions] = useState([])
   const [loadingCommission, setLoadingCommission] = useState(true)
@@ -293,20 +296,14 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
     setPendingRemoveSeller(sellerId)
   }
 
-  const confirmRemoveSellerCommission = async () => {
+  // El PasswordConfirmDialog maneja loading/error: si esto lanza, se queda
+  // abierto con el mensaje del backend.
+  const confirmRemoveSellerCommission = async (password) => {
     if (!pendingRemoveSeller) return
-    setAssigningCommissionLoading(true)
-    try {
-      await commissionsService.removeSeller(contract._id, pendingRemoveSeller)
-      setToast({ message: 'Vendedor quitado del contrato', type: 'success' })
-      setPendingRemoveSeller(null)
-      await loadCommission()
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Error al quitar al vendedor'
-      setToast({ message: msg, type: 'error' })
-    } finally {
-      setAssigningCommissionLoading(false)
-    }
+    await commissionsService.removeSeller(contract._id, pendingRemoveSeller, password)
+    setToast({ message: 'Vendedor quitado del contrato', type: 'success' })
+    setPendingRemoveSeller(null)
+    await loadCommission()
   }
 
   const handleRegisterCommissionPayment = async (formData) => {
@@ -395,18 +392,15 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
     setPendingDeleteMovement({ commission, movement })
   }
 
-  const confirmDeleteCommissionMovement = async () => {
+  const confirmDeleteCommissionMovement = async (password) => {
     if (!pendingDeleteMovement) return
     const { commission, movement } = pendingDeleteMovement
     setDeletingCommissionMovementId(movement._id)
     try {
-      await commissionsService.removeMovement(commission.contractId, commission.sellerId, movement._id)
+      await commissionsService.removeMovement(commission.contractId, commission.sellerId, movement._id, password)
       setToast({ message: 'Pago de comisión eliminado', type: 'success' })
       setPendingDeleteMovement(null)
       await loadCommission()
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Error al eliminar el pago de comisión'
-      setToast({ message: msg, type: 'error' })
     } finally {
       setDeletingCommissionMovementId(null)
     }
@@ -985,10 +979,24 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
               <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{contract.notes}</p>
             </div>
           )}
+
+          {/* Historial de cambios — solo admin */}
+          {user?.role === 'admin' && contract._id && (
+            <AuditTrail entity="contract" entityId={contract._id} />
+          )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 flex justify-end border-t flex-shrink-0" style={{ borderColor: 'var(--color-border-light)' }}>
+        <div className="px-6 py-4 flex justify-between items-center gap-3 border-t flex-shrink-0" style={{ borderColor: 'var(--color-border-light)' }}>
+          {canDeleteContract && onRequestDelete ? (
+            <button
+              onClick={() => onRequestDelete(contract)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors hover:bg-[var(--color-danger-bg)]"
+              style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+            >
+              <Trash2 size={14} /> Eliminar contrato
+            </button>
+          ) : <span />}
           <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-gray-50 transition-colors">Cerrar</button>
         </div>
       </div>
@@ -1066,28 +1074,33 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
         variant="warning"
       />
 
-      {/* Confirm: quitar vendedor de la comisión */}
-      <ConfirmDialog
-        isOpen={!!pendingRemoveSeller}
-        onClose={() => setPendingRemoveSeller(null)}
-        onConfirm={confirmRemoveSellerCommission}
-        title="Quitar vendedor"
-        message="¿Quitar a este vendedor de la comisión del contrato? Se perderá la asignación de comisión."
-        confirmText="Quitar"
-        variant="warning"
-        loading={assigningCommissionLoading}
-      />
+      {/* Quitar vendedor de la comisión — requiere contraseña del admin */}
+      {!!pendingRemoveSeller && (
+        <PasswordConfirmDialog
+          isOpen
+          onClose={() => setPendingRemoveSeller(null)}
+          onConfirm={confirmRemoveSellerCommission}
+          title="Quitar vendedor"
+          message="Ingresa tu contraseña para quitar a este vendedor de la comisión del contrato."
+          warning="Se perderá la asignación de comisión. Si el vendedor ya tiene pagos de comisión registrados, también se eliminarán. Queda registrado en la bitácora."
+          confirmText="Quitar vendedor"
+          loadingText="Quitando..."
+        />
+      )}
 
-      {/* Confirm: eliminar pago de comisión */}
-      <ConfirmDialog
-        isOpen={!!pendingDeleteMovement}
-        onClose={() => setPendingDeleteMovement(null)}
-        onConfirm={confirmDeleteCommissionMovement}
-        title="Eliminar pago de comisión"
-        message="¿Eliminar este pago de comisión? Esta acción no se puede deshacer y ajustará el saldo de la comisión."
-        confirmText="Eliminar"
-        loading={deletingCommissionMovementId === pendingDeleteMovement?.movement?._id}
-      />
+      {/* Eliminar pago de comisión — requiere contraseña del admin */}
+      {!!pendingDeleteMovement && (
+        <PasswordConfirmDialog
+          isOpen
+          onClose={() => setPendingDeleteMovement(null)}
+          onConfirm={confirmDeleteCommissionMovement}
+          title="Eliminar pago de comisión"
+          message="Ingresa tu contraseña para eliminar este pago de comisión."
+          warning="Se ajustará el saldo de la comisión y no se puede deshacer. Queda registrado en la bitácora."
+          confirmText="Eliminar pago"
+          loadingText="Eliminando..."
+        />
+      )}
 
       {/* Confirm: eliminar archivo del contrato */}
       <ConfirmDialog

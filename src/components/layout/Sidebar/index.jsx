@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import {
   LayoutDashboard, Users, Building2, FileText,
   DollarSign, ClipboardCheck, BarChart3, Briefcase, UserCircle,
-  LogOut, ChevronLeft, HelpCircle, X
+  LogOut, ChevronLeft, HelpCircle, X, ScrollText
 } from 'lucide-react'
 
 const navItems = [
@@ -16,6 +16,7 @@ const navItems = [
   { to: '/vendedores', label: 'Vendedores', icon: Briefcase, roles: ['admin', 'gerente'] },
   { to: '/entregas', label: 'Entregas', icon: ClipboardCheck },
   { to: '/reportes', label: 'Reportes', icon: BarChart3, roles: ['admin', 'gerente'] },
+  { to: '/auditoria', label: 'Auditoría', icon: ScrollText, roles: ['admin'] },
 ]
 
 const helpItem = { to: '/ayuda', label: 'Ayuda', icon: HelpCircle }

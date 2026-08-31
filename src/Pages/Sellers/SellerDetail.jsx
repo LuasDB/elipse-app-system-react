@@ -14,6 +14,7 @@ import RegisterCommissionPaymentModal from '@/components/common/RegisterCommissi
 import EditCommissionPaymentModal from '@/components/common/EditCommissionPaymentModal'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import EditSellerModal from './EditSellerModal'
+import AuditTrail from '@/components/common/AuditTrail'
 import sellersService from '@/services/sellersService'
 import commissionsService from '@/services/commissionsService'
 import usersService from '@/services/usersService'
@@ -532,6 +533,13 @@ const SellerDetail = () => {
           </div>
         )}
       </div>
+
+      {/* Historial de cambios — solo admin */}
+      {user?.role === 'admin' && seller?._id && (
+        <div className="mt-6">
+          <AuditTrail entity="seller" entityId={seller._id} />
+        </div>
+      )}
 
       <RegisterCommissionPaymentModal
         isOpen={!!registeringPaymentFor}

@@ -1,4 +1,4 @@
-import apiServices from '@/api/apiServices'
+import apiServices, { withConfirm } from '@/api/apiServices'
 
 const paymentsService = {
 
@@ -50,18 +50,27 @@ const paymentsService = {
     return data
   },
 
+  // Revierte un pago capturado por error (vuelve a "pendiente", borra movimientos).
+  // Requiere la contraseña del admin como autorización (step-up auth).
+  async revertPayment(paymentId, password) {
+    const { data } = await apiServices.post(`/payments/${paymentId}/revert`, {}, withConfirm(password))
+    return data
+  },
+
   async getAuditLog(paymentId) {
     const { data } = await apiServices.get(`/payments/${paymentId}/audit`)
     return data
   },
 
-  async delete(id) {
-    const { data } = await apiServices.delete(`/payments/${id}`)
+  // Ambas exigen la contraseña del admin (step-up auth). delete() permite borrar
+  // incluso un pago ya 'pagado'.
+  async delete(id, password) {
+    const { data } = await apiServices.delete(`/payments/${id}`, withConfirm(password))
     return data
   },
 
-  async deleteByContract(contractId) {
-    const { data } = await apiServices.delete(`/payments/contract/${contractId}`)
+  async deleteByContract(contractId, password) {
+    const { data } = await apiServices.delete(`/payments/contract/${contractId}`, withConfirm(password))
     return data
   },
 

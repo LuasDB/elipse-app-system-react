@@ -1,4 +1,4 @@
-import apiServices from '@/api/apiServices'
+import apiServices, { withConfirm } from '@/api/apiServices'
 
 const commissionsService = {
 
@@ -17,8 +17,10 @@ const commissionsService = {
     return data
   },
 
-  async removeSeller(contractId, sellerId) {
-    const { data } = await apiServices.delete(`/commissions/contract/${contractId}/sellers/${sellerId}`)
+  // Requiere la contraseña del admin (step-up auth). Con ella se permite incluso
+  // si el vendedor ya tiene pagos de comisión registrados.
+  async removeSeller(contractId, sellerId, password) {
+    const { data } = await apiServices.delete(`/commissions/contract/${contractId}/sellers/${sellerId}`, withConfirm(password))
     return data
   },
 
@@ -54,8 +56,9 @@ const commissionsService = {
     return data
   },
 
-  async removeMovement(contractId, sellerId, movementId) {
-    const { data } = await apiServices.delete(`/commissions/contract/${contractId}/sellers/${sellerId}/payments/${movementId}`)
+  // Requiere la contraseña del admin (step-up auth).
+  async removeMovement(contractId, sellerId, movementId, password) {
+    const { data } = await apiServices.delete(`/commissions/contract/${contractId}/sellers/${sellerId}/payments/${movementId}`, withConfirm(password))
     return data
   },
 

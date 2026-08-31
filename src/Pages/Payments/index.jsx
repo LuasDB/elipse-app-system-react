@@ -184,6 +184,17 @@ const Payments = () => {
     }
   }
 
+  // El PasswordConfirmDialog maneja su loading/error: si esto lanza, se queda
+  // abierto mostrando el mensaje (p. ej. "Contraseña incorrecta").
+  const handleRevertPayment = async (password) => {
+    if (!editPayment) return
+    await paymentsService.revertPayment(editPayment._id, password)
+    setToast({ message: 'Pago revertido a pendiente', type: 'success' })
+    setEditOpen(false)
+    setEditPayment(null)
+    await fetchContracts()
+  }
+
   const handleDeleteEditVoucher = async (fileName) => {
     if (!editPayment) return
     setDeletingEditVoucher(fileName)
@@ -358,6 +369,7 @@ const Payments = () => {
         loading={editLoading}
         onDeleteVoucher={handleDeleteEditVoucher}
         deletingVoucher={deletingEditVoucher}
+        onRevert={handleRevertPayment}
       />
 
       {/* Toast */}

@@ -7,4 +7,14 @@ const apiServices = {
     delete:(endpoint,config={})=>apiClient.delete(endpoint,config)
 }
 
+// Adjunta la contraseña de autorización ("step-up auth") a una petición.
+// Uso:  apiServices.delete(`/contracts/${id}`, withConfirm(password))
+export const withConfirm = (password, config = {}) => ({
+    ...config,
+    headers: {
+        ...(config.headers || {}),
+        'X-Confirm-Password': password ?? ''
+    }
+})
+
 export default apiServices

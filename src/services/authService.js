@@ -32,6 +32,17 @@ const authService ={
             throw new Error(message)
         }
     },
+    // Pre-valida la contraseña del usuario en sesión antes de una acción sensible.
+    // La autorización real la revuelve a checar el backend en cada endpoint
+    // destructivo (header X-Confirm-Password).
+    async verifyPassword(password){
+        try {
+            const { data } = await apiServices.post('/auth/verify-password', { password })
+            return data
+        } catch (error) {
+            throw new Error(error.message || 'No se pudo verificar la contraseña')
+        }
+    },
     logout(){
         clearStorage()
     },

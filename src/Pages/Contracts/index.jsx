@@ -7,7 +7,7 @@ import PageHeader from '@/components/common/PageHeader'
 import StatusBadge from '@/components/common/StatusBadge'
 import ContractFormModal from './ContractFormModal'
 import ContractDetail from './ContractDetail'
-import ConfirmDialog from '@/components/common/ConfirmDialog'
+import PasswordConfirmDialog from '@/components/common/PasswordConfirmDialog'
 import Toast from '@/components/common/Toast'
 import contractsService from '@/services/contractsService'
 import { CONTRACT_STATUS, CONTRACT_MODALITIES } from '@/utils/contractConstants'
@@ -29,7 +29,6 @@ const ContractsPage = () => {
   const [formLoading, setFormLoading] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deletingContract, setDeletingContract] = useState(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [selectedContract, setSelectedContract] = useState(null)
   const [toast, setToast] = useState(null)
@@ -132,17 +131,16 @@ const ContractsPage = () => {
     }
   }
 
-  const handleDelete = async () => {
-    setDeleteLoading(true)
-    try {
-      await contractsService.delete(deletingContract._id)
-      setToast({ message: 'Contrato eliminado y unidad liberada', type: 'success' })
-      setDeleteOpen(false)
-      setDeletingContract(null)
-      fetchContracts()
-    } catch (error) {
-      setToast({ message: error.message || 'Error al eliminar', type: 'error' })
-    } finally { setDeleteLoading(false) }
+  // El diálogo (PasswordConfirmDialog) maneja su propio loading/error: si esto
+  // lanza, se queda abierto mostrando el mensaje (p. ej. "Contraseña incorrecta").
+  const handleDelete = async (password) => {
+    await contractsService.delete(deletingContract._id, password)
+    setToast({ message: 'Contrato eliminado y unidad liberada', type: 'success' })
+    setDeleteOpen(false)
+    setDeletingContract(null)
+    setDetailOpen(false)
+    setSelectedContract(null)
+    fetchContracts()
   }
 
   const openDetail = async (contract) => {
@@ -380,19 +378,24 @@ const ContractsPage = () => {
       loading={formLoading}
     />
 
-    <ConfirmDialog
-      isOpen={deleteOpen}
-      onClose={() => { setDeleteOpen(false); setDeletingContract(null) }}
-      onConfirm={handleDelete}
-      title="Eliminar contrato"
-      message={`¿Eliminar el contrato ${deletingContract?.contractNumber}?`}
-      loading={deleteLoading}
-    />
+    {deleteOpen && (
+      <PasswordConfirmDialog
+        isOpen
+        onClose={() => { setDeleteOpen(false); setDeletingContract(null) }}
+        onConfirm={handleDelete}
+        title={`Eliminar contrato ${deletingContract?.contractNumber || ''}`}
+        message="Ingresa tu contraseña para autorizar la baja del contrato."
+        warning="Se eliminarán los pagos y las comisiones asociadas, y la unidad volverá a estado disponible. Esta acción no se puede deshacer (queda registrada en la bitácora)."
+        confirmText="Eliminar contrato"
+        loadingText="Eliminando..."
+      />
+    )}
 
     {detailOpen && selectedContract && (
       <ContractDetail
         contract={selectedContract}
         onClose={() => { setDetailOpen(false); setSelectedContract(null) }}
+        onRequestDelete={(contract) => { setDeletingContract(contract); setDeleteOpen(true) }}
          onEdit={(contract) => {
             // Cerrar el detalle y abrir el formulario en modo edición
             setDetailOpen(false)
