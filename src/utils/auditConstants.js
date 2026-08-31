@@ -34,6 +34,7 @@ export const AUDIT_ACTIONS = {
   schedule_generated: { label: 'Calendario generado', kind: 'neutral' },
   schedule_partially_regenerated: { label: 'Calendario regenerado (parcial)', kind: 'neutral' },
   payments_deleted: { label: 'Pagos eliminados (masivo)', kind: 'delete' },
+  contract_hard_deleted: { label: 'Contrato eliminado (con cascada)', kind: 'delete' },
 
   payment_registered: { label: 'Pago registrado', kind: 'money' },
   payment_updated: { label: 'Pago editado', kind: 'update' },
