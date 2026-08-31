@@ -38,6 +38,7 @@ export const AUDIT_ACTIONS = {
 
   payment_registered: { label: 'Pago registrado', kind: 'money' },
   payment_updated: { label: 'Pago editado', kind: 'update' },
+  payment_reverted: { label: 'Pago revertido a pendiente', kind: 'delete' },
 
   voucher_added: { label: 'Comprobante agregado', kind: 'file' },
   voucher_removed: { label: 'Comprobante eliminado', kind: 'file' },

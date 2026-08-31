@@ -1,4 +1,4 @@
-import apiServices from '@/api/apiServices'
+import apiServices, { withConfirm } from '@/api/apiServices'
 
 const paymentsService = {
 
@@ -47,6 +47,13 @@ const paymentsService = {
 
   async update(paymentId, paymentData) {
     const { data } = await apiServices.patch(`/payments/${paymentId}`, paymentData)
+    return data
+  },
+
+  // Revierte un pago capturado por error (vuelve a "pendiente", borra movimientos).
+  // Requiere la contraseña del admin como autorización (step-up auth).
+  async revertPayment(paymentId, password) {
+    const { data } = await apiServices.post(`/payments/${paymentId}/revert`, {}, withConfirm(password))
     return data
   },
 

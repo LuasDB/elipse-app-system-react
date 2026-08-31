@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import useLockBodyScroll from '@/hooks/useLockBodyScroll'
-import { X, DollarSign, Pencil, Upload, Trash2, Paperclip, File, ExternalLink } from 'lucide-react'
+import { X, DollarSign, Pencil, Upload, Trash2, Paperclip, File, ExternalLink, RotateCcw } from 'lucide-react'
 import { PAYMENT_METHODS, PAYMENT_STATUS } from '@/utils/paymentConstants'
 import { API_BASE_URL } from '@/api/axiosConfig'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
+import PasswordConfirmDialog from '@/components/common/PasswordConfirmDialog'
 import AuditTrail from '@/components/common/AuditTrail'
 
 const toDateInput = (d) => d ? new Date(d).toISOString().slice(0, 10) : ''
@@ -13,7 +14,7 @@ const formatFileSize = (bytes) => {
   return (bytes / 1048576).toFixed(1) + ' MB'
 }
 
-const EditPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, onDeleteVoucher, deletingVoucher = null }) => {
+const EditPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, onDeleteVoucher, deletingVoucher = null, onRevert }) => {
   const [form, setForm] = useState({
     concept: '', expectedAmount: '', paidAmount: '', dueDate: '',
     status: 'pendiente', paymentMethod: '', reference: '', notes: ''
@@ -22,6 +23,7 @@ const EditPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, onDelet
   const [selectedFiles, setSelectedFiles] = useState([])
   const [pendingDeleteVoucher, setPendingDeleteVoucher] = useState(null)
   const [pendingSubmit, setPendingSubmit] = useState(null)
+  const [revertOpen, setRevertOpen] = useState(false)
   useLockBodyScroll(isOpen)
 
   useEffect(() => {
@@ -41,6 +43,7 @@ const EditPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, onDelet
     setSelectedFiles([])
     setPendingDeleteVoucher(null)
     setPendingSubmit(null)
+    setRevertOpen(false)
   }, [payment, isOpen])
 
   const handleChange = (e) => {
@@ -261,11 +264,25 @@ const EditPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, onDelet
               <AuditTrail entity="payment" entityId={payment._id} title="Historial de este pago" />
             )}
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-[var(--color-border-light)]">
-              <button type="button" onClick={onClose} disabled={loading} className="px-5 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-gray-50 transition-colors">Cancelar</button>
-              <button type="submit" disabled={loading} className="px-5 py-2.5 text-sm font-medium rounded-lg text-white transition-all hover:shadow-md disabled:opacity-50" style={{ background: '#C8A45A' }}>
-                {loading ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando...</span> : 'Guardar cambios'}
-              </button>
+            <div className="flex items-center justify-between gap-3 pt-3 border-t border-[var(--color-border-light)]">
+              {onRevert && Number(payment.paidAmount) > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setRevertOpen(true)}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg border transition-colors hover:bg-[var(--color-danger-bg)] disabled:opacity-50"
+                  style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+                  title="Regresar este pago a pendiente y borrar sus movimientos"
+                >
+                  <RotateCcw size={14} /> Revertir pago
+                </button>
+              ) : <span />}
+              <div className="flex gap-3">
+                <button type="button" onClick={onClose} disabled={loading} className="px-5 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-gray-50 transition-colors">Cancelar</button>
+                <button type="submit" disabled={loading} className="px-5 py-2.5 text-sm font-medium rounded-lg text-white transition-all hover:shadow-md disabled:opacity-50" style={{ background: '#C8A45A' }}>
+                  {loading ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando...</span> : 'Guardar cambios'}
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -291,6 +308,19 @@ const EditPaymentModal = ({ isOpen, onClose, onSubmit, payment, loading, onDelet
         loading={loading}
         variant="warning"
       />
+
+      {revertOpen && (
+        <PasswordConfirmDialog
+          isOpen
+          onClose={() => setRevertOpen(false)}
+          onConfirm={async (password) => { await onRevert(password) }}
+          title="Revertir pago"
+          message="Ingresa tu contraseña para regresar este pago a pendiente."
+          warning={`El pago "${payment.concept}" volverá a pendiente: el monto pagado quedará en 0, se restaurará el saldo completo y se borrarán sus ${(payment.movements || []).length} movimiento(s). Queda registrado en la bitácora y no se puede deshacer.`}
+          confirmText="Revertir pago"
+          loadingText="Revirtiendo..."
+        />
+      )}
     </div>
   )
 }
