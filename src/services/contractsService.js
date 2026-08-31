@@ -1,4 +1,4 @@
-import apiServices from '@/api/apiServices'
+import apiServices, { withConfirm } from '@/api/apiServices'
 
 const contractsService = {
 
@@ -33,8 +33,10 @@ const contractsService = {
     return data
   },
 
-  async delete(id) {
-    const { data } = await apiServices.delete(`/contracts/${id}`)
+  // Baja del contrato con cascada (pagos, comisiones y liberación de la unidad).
+  // Requiere la contraseña del admin como autorización (step-up auth).
+  async delete(id, password) {
+    const { data } = await apiServices.delete(`/contracts/${id}`, withConfirm(password))
     return data
   },
 

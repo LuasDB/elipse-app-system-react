@@ -79,13 +79,14 @@ const VouchersList = ({ vouchers, paymentId }) => {
   )
 }
 
-const ContractDetail = ({ contract, onClose,onEdit }) => {
+const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
 
   const { user } = useAuth()
   const canEdit = ['admin', 'gerente'].includes(user?.role)
   const canAssignCommission = user?.role === 'admin'
   const canRegisterCommissionPayment = ['admin', 'gerente'].includes(user?.role)
   const canEditCommissionPayment = user?.role === 'admin'
+  const canDeleteContract = user?.role === 'admin'
 
   const [commissions, setCommissions] = useState([])
   const [loadingCommission, setLoadingCommission] = useState(true)
@@ -994,7 +995,16 @@ const ContractDetail = ({ contract, onClose,onEdit }) => {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 flex justify-end border-t flex-shrink-0" style={{ borderColor: 'var(--color-border-light)' }}>
+        <div className="px-6 py-4 flex justify-between items-center gap-3 border-t flex-shrink-0" style={{ borderColor: 'var(--color-border-light)' }}>
+          {canDeleteContract && onRequestDelete ? (
+            <button
+              onClick={() => onRequestDelete(contract)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors hover:bg-[var(--color-danger-bg)]"
+              style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+            >
+              <Trash2 size={14} /> Eliminar contrato
+            </button>
+          ) : <span />}
           <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-gray-50 transition-colors">Cerrar</button>
         </div>
       </div>
