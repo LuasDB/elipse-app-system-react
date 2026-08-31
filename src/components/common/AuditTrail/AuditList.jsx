@@ -22,6 +22,112 @@ const formatDateTime = (d) => {
   })
 }
 
+const fmtUSD = (n) =>
+  typeof n === 'number' && !Number.isNaN(n)
+    ? n.toLocaleString('es-MX', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+    : '—'
+
+const STATUS_LABELS = { pendiente: 'Pendiente', parcial: 'Parcial', pagado: 'Pagado', vencido: 'Vencido' }
+
+// Extrae, para las acciones de baja en cascada / reversión, los datos que vale
+// la pena mostrar como tabla legible en lugar de solo el JSON crudo.
+const getCascadeData = (item) => {
+  const snap = item.snapshot
+  const meta = item.meta || {}
+  if (item.action === 'contract_hard_deleted') {
+    return { contract: snap?.contract, payments: snap?.payments || [], commissions: snap?.commissions || [] }
+  }
+  if (item.action === 'deleted' && item.entity === 'contract') {
+    return { contract: snap, payments: meta.removedPayments || [], commissions: meta.removedCommissions || [] }
+  }
+  if (item.action === 'payments_deleted') {
+    return { payments: Array.isArray(snap) ? snap : [] }
+  }
+  if (item.action === 'payment_reverted') {
+    return { movements: snap?.removedMovements || [] }
+  }
+  return null
+}
+
+const MiniTable = ({ title, headers, rows }) => {
+  if (!rows.length) return null
+  return (
+    <div className="rounded-lg border overflow-hidden" style={{ borderColor: 'var(--color-border-light)' }}>
+      <div
+        className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider"
+        style={{ background: 'var(--color-surface-sunken)', color: 'var(--color-text-muted)' }}
+      >
+        {title}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr style={{ color: 'var(--color-text-muted)' }}>
+              {headers.map((h, i) => (
+                <th key={i} className={`px-3 py-1.5 font-medium ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((cells, r) => (
+              <tr key={r} style={{ borderTop: '1px solid var(--color-border-light)' }}>
+                {cells.map((c, i) => (
+                  <td
+                    key={i}
+                    className={`px-3 py-1.5 ${i === 0 ? 'text-left' : 'text-right'}`}
+                    style={{ color: i === 0 ? 'var(--color-text)' : 'var(--color-text-secondary)' }}
+                  >
+                    {c}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+const CascadeDetail = ({ data }) => {
+  const { contract, payments = [], commissions = [], movements = [] } = data
+  return (
+    <div className="space-y-2">
+      {contract && (
+        <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+          Contrato <span className="font-medium">{contract.contractNumber || '—'}</span>
+          {contract.buyerName ? ` · ${contract.buyerName}` : ''}
+          {contract.unitIdentifier ? ` · ${contract.unitIdentifier}` : ''}
+        </p>
+      )}
+      <MiniTable
+        title={`Pagos eliminados (${payments.length})`}
+        headers={['Concepto', 'Esperado', 'Pagado', 'Estado']}
+        rows={payments.map((p) => [
+          p.concept || '—', fmtUSD(p.expectedAmount), fmtUSD(p.paidAmount), STATUS_LABELS[p.status] || p.status || '—',
+        ])}
+      />
+      <MiniTable
+        title={`Comisiones eliminadas (${commissions.length})`}
+        headers={['Vendedor', 'Asignado', 'Pagado', 'Estado']}
+        rows={commissions.map((c) => [
+          c.sellerName || '—', fmtUSD(c.amount), fmtUSD(c.paidAmount), STATUS_LABELS[c.status] || c.status || '—',
+        ])}
+      />
+      <MiniTable
+        title={`Movimientos borrados (${movements.length})`}
+        headers={['Monto', 'Tipo de cambio', 'Fecha', 'Referencia']}
+        rows={movements.map((m) => [
+          fmtUSD(m.amount),
+          typeof m.exchangeRate === 'number' ? m.exchangeRate.toLocaleString('es-MX') : '—',
+          formatValue(m.exchangeRateDate || m.registeredAt),
+          m.reference || '—',
+        ])}
+      />
+    </div>
+  )
+}
+
 // Claves de meta que vale la pena mostrar como texto (el resto se ve en el snapshot)
 const META_LABELS = {
   amount: 'Monto',
@@ -39,6 +145,14 @@ const META_LABELS = {
   filename: 'Archivo',
   contractId: 'ID de contrato',
   ip: 'IP',
+  confirmedWithPassword: 'Autorizado con contraseña',
+  unitReleased: 'Unidad liberada',
+  reason: 'Motivo',
+  removedMovementsCount: 'Movimientos borrados',
+}
+
+const META_REASON_LABELS = {
+  contract_hard_deleted: 'baja del contrato en cascada',
 }
 
 const MetaLine = ({ meta }) => {
@@ -58,7 +172,9 @@ const MetaLine = ({ meta }) => {
           <span style={{ color: 'var(--color-text-muted)' }}>
             {k === '_cascade' ? '' : `${META_LABELS[k] || k}: `}
           </span>
-          {Array.isArray(v) ? v.join(', ') : formatValue(v)}
+          {k === 'reason'
+            ? (META_REASON_LABELS[v] || v)
+            : Array.isArray(v) ? v.join(', ') : formatValue(v)}
         </span>
       ))}
     </div>
@@ -72,6 +188,8 @@ const AuditRow = ({ item, showEntity }) => {
   const entity = getEntityConfig(item.entity)
   const actorName = item.actor?.name || item.userName || 'Sistema'
   const changes = item.changes || []
+  const cascade = getCascadeData(item)
+  const isRemoval = item.action === 'deleted' || (item.action || '').includes('removed') || (item.action || '').includes('deleted')
   const hasDetail = changes.length > 0 || item.meta || item.snapshot
 
   return (
@@ -136,6 +254,10 @@ const AuditRow = ({ item, showEntity }) => {
 
           <MetaLine meta={item.meta} />
 
+          {cascade && (
+            <CascadeDetail data={cascade} />
+          )}
+
           {item.snapshot && (
             <div>
               <button
@@ -143,7 +265,7 @@ const AuditRow = ({ item, showEntity }) => {
                 className="text-xs font-medium hover:underline"
                 style={{ color: 'var(--color-info)' }}
               >
-                {showSnapshot ? 'Ocultar' : 'Ver'} copia del registro {item.action === 'deleted' || (item.action || '').includes('removed') ? 'eliminado' : ''}
+                {showSnapshot ? 'Ocultar' : 'Ver'} {cascade ? 'JSON completo' : `copia del registro ${isRemoval ? 'eliminado' : ''}`}
               </button>
               {showSnapshot && (
                 <pre
