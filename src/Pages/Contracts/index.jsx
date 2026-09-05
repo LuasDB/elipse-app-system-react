@@ -27,8 +27,8 @@ const ContractsPage = () => {
   const [formOpen, setFormOpen] = useState(false)
   const [editingContract, setEditingContract] = useState(null)
   const [formLoading, setFormLoading] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deletingContract, setDeletingContract] = useState(null)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancellingContract, setCancellingContract] = useState(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [selectedContract, setSelectedContract] = useState(null)
   const [toast, setToast] = useState(null)
@@ -43,7 +43,7 @@ const ContractsPage = () => {
   const fetchContracts = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await contractsService.getAll()
+      const response = await contractsService.getAll({ includeCancelled: true })
       setContracts(response.data || [])
     } catch (error) {
       setToast({ message: 'Error al cargar contratos', type: 'error' })
@@ -62,7 +62,8 @@ const ContractsPage = () => {
   }, [])
 
   const filtered = contracts.filter(c => {
-    if (statusFilter && c.status !== statusFilter) return false
+    // Los cancelados solo se ven si se selecciona explícitamente ese filtro.
+    if (statusFilter ? c.status !== statusFilter : c.status === 'cancelado') return false
     if (selectedProject && c.projectId !== selectedProject) return false
     if (search) {
       const q = search.toLowerCase()
@@ -86,15 +87,22 @@ const ContractsPage = () => {
       let successMessage
 
       if (editingContract) {
-        const res = await contractsService.update(editingContract._id, formData)
         contractId = editingContract._id
+        let unitChangedMessage = ''
+
+        if (formData.unitId && formData.unitId !== editingContract.unitId) {
+          await contractsService.changeUnit(contractId, formData.unitId)
+          unitChangedMessage = 'Unidad actualizada (la anterior quedó disponible) · '
+        }
+
+        const res = await contractsService.update(contractId, formData)
         const stats = res?.data?.regenerationStats
         if (stats?.fullRegeneration) {
-          successMessage = `Contrato actualizado · calendario regenerado (${stats.generated} pagos)`
+          successMessage = `${unitChangedMessage}Contrato actualizado · calendario regenerado (${stats.generated} pagos)`
         } else if (stats && stats.preserved > 0) {
-          successMessage = `Contrato actualizado · se conservaron ${stats.preserved} pagos con cobros`
+          successMessage = `${unitChangedMessage}Contrato actualizado · se conservaron ${stats.preserved} pagos con cobros`
         } else {
-          successMessage = 'Contrato actualizado'
+          successMessage = `${unitChangedMessage}Contrato actualizado`
         }
       } else {
         const res = await contractsService.create(formData)
@@ -133,11 +141,11 @@ const ContractsPage = () => {
 
   // El diálogo (PasswordConfirmDialog) maneja su propio loading/error: si esto
   // lanza, se queda abierto mostrando el mensaje (p. ej. "Contraseña incorrecta").
-  const handleDelete = async (password) => {
-    await contractsService.delete(deletingContract._id, password)
-    setToast({ message: 'Contrato eliminado y unidad liberada', type: 'success' })
-    setDeleteOpen(false)
-    setDeletingContract(null)
+  const handleCancel = async (password, reason) => {
+    await contractsService.cancel(cancellingContract._id, reason, password)
+    setToast({ message: 'Contrato cancelado y unidad liberada', type: 'success' })
+    setCancelOpen(false)
+    setCancellingContract(null)
     setDetailOpen(false)
     setSelectedContract(null)
     fetchContracts()
@@ -189,7 +197,7 @@ const ContractsPage = () => {
               : 'bg-white border-[var(--color-border)] text-[var(--color-text-secondary)]'
           }`}
         >
-          Todos ({contracts.length})
+          Todos ({contracts.filter(c => c.status !== 'cancelado').length})
         </button>
 
         {stats.map(s => (
@@ -378,16 +386,19 @@ const ContractsPage = () => {
       loading={formLoading}
     />
 
-    {deleteOpen && (
+    {cancelOpen && (
       <PasswordConfirmDialog
         isOpen
-        onClose={() => { setDeleteOpen(false); setDeletingContract(null) }}
-        onConfirm={handleDelete}
-        title={`Eliminar contrato ${deletingContract?.contractNumber || ''}`}
-        message="Ingresa tu contraseña para autorizar la baja del contrato."
-        warning="Se eliminarán los pagos y las comisiones asociadas, y la unidad volverá a estado disponible. Esta acción no se puede deshacer (queda registrada en la bitácora)."
-        confirmText="Eliminar contrato"
-        loadingText="Eliminando..."
+        onClose={() => { setCancelOpen(false); setCancellingContract(null) }}
+        onConfirm={handleCancel}
+        title={`Cancelar contrato ${cancellingContract?.contractNumber || ''}`}
+        message="Ingresa tu contraseña para autorizar la cancelación del contrato."
+        warning="La unidad volverá a estado disponible. Los pagos y comisiones ya registrados se conservan como histórico y seguirán visibles en el detalle. El contrato dejará de contar en el dashboard y los reportes, y no aparecerá en el listado salvo que filtres por 'Cancelado'. Esta acción no se puede deshacer (queda registrada en la bitácora)."
+        confirmText="Cancelar contrato"
+        loadingText="Cancelando..."
+        requireReason
+        reasonLabel="Motivo de cancelación"
+        reasonPlaceholder="Ej: el comprador desistió de la compra..."
       />
     )}
 
@@ -395,7 +406,7 @@ const ContractsPage = () => {
       <ContractDetail
         contract={selectedContract}
         onClose={() => { setDetailOpen(false); setSelectedContract(null) }}
-        onRequestDelete={(contract) => { setDeletingContract(contract); setDeleteOpen(true) }}
+        onRequestCancel={(contract) => { setCancellingContract(contract); setCancelOpen(true) }}
          onEdit={(contract) => {
             // Cerrar el detalle y abrir el formulario en modo edición
             setDetailOpen(false)

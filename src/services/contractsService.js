@@ -7,6 +7,7 @@ const contractsService = {
     if (filters.projectId) params.append('projectId', filters.projectId)
     if (filters.status) params.append('status', filters.status)
     if (filters.search) params.append('search', filters.search)
+    if (filters.includeCancelled) params.append('includeCancelled', 'true')
     const query = params.toString()
     const { data } = await apiServices.get(`/contracts${query ? `?${query}` : ''}`)
     return data
@@ -27,16 +28,22 @@ const contractsService = {
     return data
   },
 
+  // Cambia la unidad del contrato: libera la unidad anterior y reserva la nueva.
+  async changeUnit(id, unitId) {
+    const { data } = await apiServices.patch(`/contracts/${id}/unit`, { unitId })
+    return data
+  },
+
   async regenerateSchedule(contractId) {
     // Re-genera el calendario de pagos del contrato (al cambiar modalidad o hitos)
     const { data } = await apiServices.post(`/payments/generate/${contractId}`)
     return data
   },
 
-  // Baja del contrato con cascada (pagos, comisiones y liberación de la unidad).
-  // Requiere la contraseña del admin como autorización (step-up auth).
-  async delete(id, password) {
-    const { data } = await apiServices.delete(`/contracts/${id}`, withConfirm(password))
+  // Cancela el contrato (no lo elimina): libera la unidad y conserva pagos/comisiones
+  // como histórico. Requiere la contraseña del admin y un motivo (step-up auth).
+  async cancel(id, reason, password) {
+    const { data } = await apiServices.post(`/contracts/${id}/cancel`, { reason }, withConfirm(password))
     return data
   },
 

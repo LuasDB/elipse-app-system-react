@@ -11,6 +11,9 @@ import useLockBodyScroll from '@/hooks/useLockBodyScroll'
  * falla: el diálogo se queda abierto y muestra el mensaje. Si resuelve, el
  * componente padre es responsable de cerrarlo.
  *
+ * Si `requireReason` es true, además se pide un motivo obligatorio y
+ * `onConfirm(password, reason)` recibe ambos valores.
+ *
  * Debe montarse condicionalmente (`{open && <PasswordConfirmDialog .../>}`) para
  * que cada apertura arranque con el estado limpio.
  */
@@ -23,8 +26,12 @@ const PasswordConfirmDialog = ({
   warning,
   confirmText = 'Autorizar y continuar',
   loadingText = 'Verificando...',
+  requireReason = false,
+  reasonLabel = 'Motivo',
+  reasonPlaceholder = 'Explica el motivo de esta acción...',
 }) => {
   const [password, setPassword] = useState('')
+  const [reason, setReason] = useState('')
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -39,10 +46,14 @@ const PasswordConfirmDialog = ({
       setError('Ingresa tu contraseña')
       return
     }
+    if (requireReason && !reason.trim()) {
+      setError(`Ingresa el ${reasonLabel.toLowerCase()}`)
+      return
+    }
     setLoading(true)
     setError('')
     try {
-      await onConfirm(password)
+      await onConfirm(password, requireReason ? reason.trim() : undefined)
       // Éxito: el padre desmonta el diálogo. Se deja `loading` en true para
       // evitar un doble envío en el parpadeo previo al cierre.
     } catch (err) {
@@ -77,6 +88,23 @@ const PasswordConfirmDialog = ({
           >
             {warning}
           </p>
+        )}
+
+        {requireReason && (
+          <div className="mt-4">
+            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text)' }}>
+              {reasonLabel}
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => { setReason(e.target.value); setError('') }}
+              placeholder={reasonPlaceholder}
+              rows={3}
+              disabled={loading}
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              style={{ borderColor: 'var(--color-border)' }}
+            />
+          </div>
         )}
 
         <div className="mt-4">
@@ -118,7 +146,7 @@ const PasswordConfirmDialog = ({
           </button>
           <button
             type="submit"
-            disabled={loading || !password}
+            disabled={loading || !password || (requireReason && !reason.trim())}
             className="px-4 py-2 text-sm font-medium rounded-lg text-white transition-colors hover:opacity-90 disabled:opacity-50"
             style={{ background: 'var(--color-danger)' }}
           >

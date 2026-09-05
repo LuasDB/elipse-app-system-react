@@ -105,6 +105,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
       })
       // Guardar snapshot para detectar cambios
       setOriginalForm({
+        unitId: contract.unitId || '',
         modality: contract.modality || 'monthly',
         salePrice: contract.salePrice || '',
         downPayment: contract.downPayment || '',
@@ -169,6 +170,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
   const criticalChanges = (() => {
     if (!isEditing || !originalForm) return []
     const changes = []
+    if (form.unitId !== originalForm.unitId) changes.push('Unidad')
     if (form.modality !== originalForm.modality) changes.push('Modalidad')
     if (String(form.salePrice) !== String(originalForm.salePrice)) changes.push('Precio de venta')
     if (String(form.downPayment) !== String(originalForm.downPayment)) changes.push('Enganche')
@@ -193,6 +195,10 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
     if (form.promiseDate !== originalForm.promiseDate) changes.push('Fecha de promesa')
     return changes
   })()
+
+  const unitChanged = isEditing && !!originalForm && form.unitId !== originalForm.unitId
+  const otherCriticalChanges = criticalChanges.filter(c => c !== 'Unidad')
+  const previousUnit = unitChanged ? units.find(u => u._id === originalForm.unitId) : null
 
   const addMilestone = () => {
     setForm(prev => ({
@@ -312,7 +318,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
               <AlertCircle size={16} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-info)' }} />
               <div className="flex-1 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
                 <p className="font-semibold mb-0.5" style={{ color: 'var(--color-text)' }}>Modo edición</p>
-                <p>Proyecto, unidad y comprador no se pueden modificar. Si cambias montos, modalidad o hitos, se regenerará el calendario de pagos (los pagos cobrados se conservan).</p>
+                <p>Proyecto y comprador no se pueden modificar. Puedes cambiar la unidad (la anterior queda disponible). Si cambias montos, modalidad o hitos, se regenerará el calendario de pagos (los pagos cobrados se conservan).</p>
               </div>
             </div>
           )}
@@ -344,7 +350,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
               </div>
               <div>
                 <label className={labelClass}>Unidad <span className="text-red-400">*</span></label>
-                <select name="unitId" value={form.unitId} onChange={handleChange} className={selectClass('unitId')} disabled={!form.projectId || isEditing}>
+                <select name="unitId" value={form.unitId} onChange={handleChange} className={selectClass('unitId')} disabled={!form.projectId}>
                   <option value="">{form.projectId ? 'Selecciona...' : 'Primero un proyecto'}</option>
                   {units.map(u => <option key={u._id} value={u._id}>{u.identifier} — {u.unitType} {u.status !== 'disponible' ? `(${u.status})` : ''}</option>)}
                 </select>
@@ -408,7 +414,9 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
               <div>
                 <label className={labelClass}>Estado</label>
                 <select name="status" value={form.status} onChange={handleChange} className={selectClass('status')}>
-                  {CONTRACT_STATUS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  {/* "Cancelado" no es seleccionable aquí: cancelar un contrato requiere
+                      la acción dedicada (contraseña + motivo), no la edición genérica. */}
+                  {CONTRACT_STATUS.filter(s => s.value !== 'cancelado').map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
               </div>
               <div>
@@ -706,8 +714,25 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
               </p>
             )}
 
+            {/* Aviso de cambio de unidad */}
+            {unitChanged && (
+              <div className="p-4 rounded-lg border-2" style={{ borderColor: 'var(--color-warning)', background: 'var(--color-warning-bg)' }}>
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle size={18} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-warning)' }} />
+                  <div className="flex-1">
+                    <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--color-warning)' }}>
+                      Vas a cambiar la unidad del contrato
+                    </p>
+                    <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                      La unidad <strong>{previousUnit?.identifier || contract?.unitIdentifier}</strong> quedará <strong>disponible</strong> y la nueva unidad pasará al estatus correspondiente al estatus actual del contrato.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Aviso de regeneración crítica */}
-            {criticalChanges.length > 0 && (
+            {otherCriticalChanges.length > 0 && (
               <div className="p-4 rounded-lg border-2" style={{ borderColor: 'var(--color-warning)', background: 'var(--color-warning-bg)' }}>
                 <div className="flex items-start gap-2.5">
                   <AlertCircle size={18} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-warning)' }} />
@@ -719,7 +744,7 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
                       Estás modificando campos que impactan el calendario:
                     </p>
                     <div className="flex flex-wrap gap-1.5 mb-2">
-                      {criticalChanges.map(label => (
+                      {otherCriticalChanges.map(label => (
                         <span key={label} className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: 'white', color: 'var(--color-warning)', border: '1px solid var(--color-warning)' }}>
                           {label}
                         </span>
@@ -760,7 +785,11 @@ const ContractFormModal = ({ isOpen, onClose, onSubmit, contract, loading }) => 
       onClose={() => setConfirmingCriticalSubmit(false)}
       onConfirm={handleSubmit}
       title="Confirmar cambios críticos"
-      message={`Vas a modificar campos críticos: ${criticalChanges.join(', ')}. Esto regenerará el calendario de pagos (los pagos ya cobrados se conservan como histórico, los no cobrados se eliminarán). ¿Deseas continuar?`}
+      message={[
+        unitChanged && `Cambiarás la unidad: "${previousUnit?.identifier || contract?.unitIdentifier}" quedará disponible.`,
+        otherCriticalChanges.length > 0 && `Modificarás: ${otherCriticalChanges.join(', ')}. Esto regenerará el calendario de pagos (los pagos ya cobrados se conservan como histórico, los no cobrados se eliminarán).`,
+        '¿Deseas continuar?'
+      ].filter(Boolean).join(' ')}
       confirmText="Sí, continuar"
       loading={loading}
       variant="warning"

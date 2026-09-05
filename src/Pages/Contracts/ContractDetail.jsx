@@ -4,7 +4,7 @@ import {
   X, Building2, Home, User, DollarSign, Calendar, FileText,
   Phone, Mail, MapPin, CheckCircle, Clock, AlertTriangle,
   ExternalLink, File, Paperclip, ChevronDown, ChevronUp,
-  Hammer, Calendar as CalendarIcon, CheckCircle2, Lock,Pencil, Percent, Trash2
+  Hammer, Calendar as CalendarIcon, CheckCircle2, Lock,Pencil, Percent, Trash2, Ban
 } from 'lucide-react'
 import StatusBadge from '@/components/common/StatusBadge'
 import { CONTRACT_STATUS, PAYMENT_SCHEMES, CONTRACT_MODALITIES, getModalityConfig } from '@/utils/contractConstants'
@@ -80,14 +80,15 @@ const VouchersList = ({ vouchers, paymentId }) => {
   )
 }
 
-const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
+const ContractDetail = ({ contract, onClose, onEdit, onRequestCancel }) => {
 
   const { user } = useAuth()
-  const canEdit = ['admin', 'gerente'].includes(user?.role)
+  const isCancelled = contract?.status === 'cancelado'
+  const canEdit = ['admin', 'gerente'].includes(user?.role) && !isCancelled
   const canAssignCommission = user?.role === 'admin'
   const canRegisterCommissionPayment = ['admin', 'gerente'].includes(user?.role)
   const canEditCommissionPayment = user?.role === 'admin'
-  const canDeleteContract = user?.role === 'admin'
+  const canCancelContract = user?.role === 'admin' && !isCancelled
 
   const [commissions, setCommissions] = useState([])
   const [loadingCommission, setLoadingCommission] = useState(true)
@@ -496,6 +497,27 @@ const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
+          {/* Aviso de cancelación */}
+          {isCancelled && (
+            <div className="p-4 rounded-xl border-2 flex items-start gap-3" style={{ borderColor: 'var(--color-danger)', background: 'var(--color-danger-bg)' }}>
+              <Ban size={18} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-danger)' }} />
+              <div className="flex-1">
+                <p className="text-sm font-bold" style={{ color: 'var(--color-danger)' }}>Contrato cancelado</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                  {formatDate(contract.cancelledAt)}{contract.cancelledBy ? ` · por ${contract.cancelledBy}` : ''}
+                </p>
+                {contract.cancelReason && (
+                  <p className="text-xs mt-2" style={{ color: 'var(--color-text)' }}>
+                    <span className="font-semibold">Motivo:</span> {contract.cancelReason}
+                  </p>
+                )}
+                <p className="text-[11px] mt-2 italic" style={{ color: 'var(--color-text-muted)' }}>
+                  La unidad quedó disponible. Los montos y pagos de este contrato no se cuentan en el dashboard ni en los reportes.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Proyecto + Unidad */}
           <div className="grid grid-cols-2 gap-6">
             <div className="p-4 rounded-xl border" style={{ borderColor: 'var(--color-border-light)', background: 'var(--color-surface)' }}>
@@ -551,7 +573,7 @@ const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
                         <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{c.sellerName || 'Vendedor'}</p>
                         <div className="flex items-center gap-2">
                           <StatusBadge label={commStatus.label} color={commStatus.color} bg={commStatus.bg} size="xs" />
-                          {canRegisterCommissionPayment && c.balance > 0 && (
+                          {canRegisterCommissionPayment && c.balance > 0 && !isCancelled && (
                             <button
                               onClick={() => setRegisteringCommissionPaymentFor(c)}
                               className="px-2.5 py-1 text-[11px] font-medium rounded-md text-white transition-colors hover:opacity-90"
@@ -592,7 +614,7 @@ const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
                                   </span>
                                   <span className="font-bold" style={{ color: 'var(--color-success)' }}>{formatUSD(m.amount)}</span>
                                   <span style={{ color: 'var(--color-text-muted)' }}>{formatDateShort(m.paymentDate || m.registeredAt)}</span>
-                                  {canEditCommissionPayment && (
+                                  {canEditCommissionPayment && !isCancelled && (
                                     <div className="flex items-center gap-1 flex-shrink-0">
                                       <button
                                         onClick={() => handleEditCommissionMovement(c, m)}
@@ -714,11 +736,11 @@ const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
             <FileUploadZone
               existingFiles={contractFiles}
               pendingFiles={[]}
-              onAddPending={handleUploadFiles}
-              onRemoveExisting={handleRemoveFile}
+              onAddPending={isCancelled ? undefined : handleUploadFiles}
+              onRemoveExisting={isCancelled ? undefined : handleRemoveFile}
               serverBase={serverBase}
               contractId={contract._id}
-              disabled={filesLoading}
+              disabled={filesLoading || isCancelled}
             />
           </div>
 
@@ -734,7 +756,7 @@ const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
                 <MilestoneTimeline
                   milestones={milestonePayments}
                   exchangeRate={contract.exchangeRate}
-                  canManage={true}
+                  canManage={!isCancelled}
                   onComplete={(m) => setCompletingMilestone(m)}
                   onUncomplete={(m) => setUncompleteMilestone(m)}
                   onEditCommitment={(m) => setEditingCommitment(m)}
@@ -847,8 +869,8 @@ const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
                           {/* Status */}
                           <StatusBadge label={pStatus.label} color={pStatus.color} bg={pStatus.bg} size="xs" />
 
-                          {/* Botón Registrar (solo si no está pagado) */}
-                          {!isPaid && (
+                          {/* Botón Registrar (solo si no está pagado ni cancelado) */}
+                          {!isPaid && !isCancelled && (
                             <button
                               onClick={(e) => { e.stopPropagation(); setRegisteringPayment(p) }}
                               className="px-2.5 py-1 text-[11px] font-medium rounded-md text-white transition-colors hover:opacity-90 flex-shrink-0"
@@ -988,13 +1010,13 @@ const ContractDetail = ({ contract, onClose, onEdit, onRequestDelete }) => {
 
         {/* Footer */}
         <div className="px-6 py-4 flex justify-between items-center gap-3 border-t flex-shrink-0" style={{ borderColor: 'var(--color-border-light)' }}>
-          {canDeleteContract && onRequestDelete ? (
+          {canCancelContract && onRequestCancel ? (
             <button
-              onClick={() => onRequestDelete(contract)}
+              onClick={() => onRequestCancel(contract)}
               className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors hover:bg-[var(--color-danger-bg)]"
               style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
             >
-              <Trash2 size={14} /> Eliminar contrato
+              <Ban size={14} /> Cancelar contrato
             </button>
           ) : <span />}
           <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-gray-50 transition-colors">Cerrar</button>
