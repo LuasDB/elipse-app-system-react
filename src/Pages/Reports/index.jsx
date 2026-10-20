@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
-  TrendingUp, Clock, Trophy, Wallet, Sparkles,
+  TrendingUp, Clock, Trophy, Wallet, Sparkles, Download,
   LineChart, Filter, History, GitCompare, Share2, CalendarClock
 } from 'lucide-react'
 import {
@@ -11,6 +11,7 @@ import {
 } from 'chart.js'
 import { Chart } from 'react-chartjs-2'
 import PageHeader from '@/components/common/PageHeader'
+import Toast from '@/components/common/Toast'
 import reportsService from '@/services/reportsService'
 import sellersService from '@/services/sellersService'
 import { formatUSD } from '@/utils/currency'
@@ -93,6 +94,22 @@ const ROADMAP = [
 
 const ReportsPage = () => {
   const [activeTab, setActiveTab] = useState('ventas')
+
+  // ---- Exportar contratos a Excel ----
+  const [exporting, setExporting] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  const handleExportContracts = async () => {
+    setExporting(true)
+    try {
+      await reportsService.downloadContractsExcel()
+    } catch (err) {
+      console.error('Error al exportar contratos:', err)
+      setToast({ message: 'No se pudo generar el Excel de contratos', type: 'error' })
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // ---- Vendido vs cobrado ----
   const [preset, setPreset] = useState('year')
@@ -226,7 +243,26 @@ const ReportsPage = () => {
 
   return (
     <div className="animate-fadeIn">
-      <PageHeader title="Reportes" subtitle="Ventas, cobranza y comisiones del negocio" />
+      <PageHeader
+        title="Reportes"
+        subtitle="Ventas, cobranza y comisiones del negocio"
+        actions={
+          <button
+            onClick={handleExportContracts}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg text-white transition-all hover:shadow-lg hover:shadow-[var(--color-primary)]/20 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+            style={{ background: 'var(--color-primary)' }}
+          >
+            {exporting
+              ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              : <Download size={17} />
+            }
+            {exporting ? 'Generando...' : 'Descargar Excel'}
+          </button>
+        }
+      />
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* Selector de reporte */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
